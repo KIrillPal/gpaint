@@ -1,53 +1,39 @@
 #include <cstdio>
-#include <stdexcept>
 #include "BMP.h"
+#include "gpaint_exception.h"
 
  void BMPReader::loadFromFile(const char* path, Image& image) {
     BMPFileHeader  file_header;
     BMPInfoHeader  info_header;
     BMPColorHeader color_header;
-    char errorMessage[64];
 
     FILE * file = fopen(path, "rb");
-    if (file == nullptr) {
-        snprintf(errorMessage, 64, "Couldn't open file \"%s\" to load", path);
-        throw std::runtime_error(errorMessage);
-    }
+    if (file == nullptr)
+        GPAINT_EXCEPTION("Couldn't open file \"%s\" to load", path);
 
-    if (!readBMPFileHeader (file, &file_header)) {
-        snprintf(errorMessage, 64, "Invalid BMP file header format of file \"%s\"", path);
-        throw std::runtime_error(errorMessage);
-    }
-    if (!readBMPInfoHeader (file, &info_header)) {
-        snprintf(errorMessage, 64, "Invalid BMP info header format of file \"%s\"", path);
-        throw std::runtime_error(errorMessage);
-    }
+    if (!readBMPFileHeader (file, &file_header))
+        GPAINT_EXCEPTION("Couldn't open file \"%s\" to load", path);
+
+    if (!readBMPInfoHeader (file, &info_header))
+        GPAINT_EXCEPTION("Invalid BMP info header format of file \"%s\"", path);
 
     if (info_header.size == sizeof(BMPInfoHeader) + sizeof(BMPColorHeader)) {
-        if (!readBMPColorHeader(file, &color_header)) {
-            snprintf(errorMessage, 64, "Invalid BMP color header format of file \"%s\"", path);
-            throw std::runtime_error(errorMessage);
-        }
+        if (!readBMPColorHeader(file, &color_header))
+            GPAINT_EXCEPTION("Invalid BMP color header format of file \"%s\"", path);
     }
     fseek(file, file_header.offset_data, 0);
 
     image = Image(info_header.width, info_header.height);
     if (color_header.color_space_type == COLOR_SPACE::sRGB)
     {
-        if (info_header.bit_count != 24) {
-            snprintf(errorMessage, 64, "Invalid color format of file \"%s\"", path);
-            throw std::runtime_error(errorMessage);
-        }
-        if (!readImageRGB(file, image, info_header)) {
-            snprintf(errorMessage, 64, "Invalid BMP meta of file \"%s\". Failed to load data.", path);
-            throw std::runtime_error(errorMessage);
-        }
+        if (info_header.bit_count != 24)
+            GPAINT_EXCEPTION("Invalid color format of file \"%s\"", path);
+        if (!readImageRGB(file, image, info_header))
+            GPAINT_EXCEPTION("Invalid BMP meta of file \"%s\". Failed to load data.", path);
     }
     else {
-        snprintf(errorMessage, 64, "File \"%s\" has incorrect color space code: %X", 
-            path, 
-            color_header.color_space_type);
-        throw std::runtime_error(errorMessage);
+        GPAINT_EXCEPTION("File \"%s\" has incorrect color space code: %X",
+                         path, color_header.color_space_type);
     }
 }
 
@@ -58,33 +44,25 @@ void BMPReader::saveToFile(const char* path, Image& image, uint32_t color_space_
     char errorMessage[64];
 
     FILE * file = fopen(path, "wb");
-    if (file == nullptr) {
-        snprintf(errorMessage, 64, "Couldn't open file \"%s\" to save", path);
-        throw std::runtime_error(errorMessage);
-    }
+    if (file == nullptr)
+        GPAINT_EXCEPTION("Couldn't open file \"%s\" to save", path);
 
     makesRGBHeaders(file_header, info_header, color_header, image);
-    if (fwrite(&file_header, sizeof(file_header), 1, file) != 1) {
-        snprintf(errorMessage, 64, "Couldn't save file header of file \"%s\"", path);
-        throw std::runtime_error(errorMessage);
-    }
-    if (fwrite(&info_header, sizeof(info_header), 1, file) != 1) {
-        snprintf(errorMessage, 64, "Couldn't save info header of file \"%s\"", path);
-        throw std::runtime_error(errorMessage);
-    }
+
+    if (fwrite(&file_header, sizeof(file_header), 1, file) != 1)
+        GPAINT_EXCEPTION("Couldn't save file header of file \"%s\"", path);
+
+    if (fwrite(&info_header, sizeof(info_header), 1, file) != 1)
+        GPAINT_EXCEPTION("Couldn't save info header of file \"%s\"", path);
 
     if (color_space_type != COLOR_SPACE::sRGB)
     {
-        if (fwrite(&color_header, sizeof(color_header), 1, file) != 1) {
-            snprintf(errorMessage, 64, "Couldn't save color header of file \"%s\"", path);
-            throw std::runtime_error(errorMessage);
-        }
+        if (fwrite(&color_header, sizeof(color_header), 1, file) != 1)
+            GPAINT_EXCEPTION("Couldn't save color header of file \"%s\"", path);
     }
 
-    if (!writeImageRGB(file, image)) {
-        snprintf(errorMessage, 64, "Couldn't write image data to the file \"%s\"", path);
-        throw std::runtime_error(errorMessage);
-    }
+    if (!writeImageRGB(file, image))
+        GPAINT_EXCEPTION("Couldn't write image data to the file \"%s\"", path);
 }
 
 bool BMPReader::readBMPFileHeader(FILE* file, BMPFileHeader* header) {

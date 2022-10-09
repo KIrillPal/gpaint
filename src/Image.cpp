@@ -1,10 +1,10 @@
 #include <cstdlib>
-#include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <stdexcept>
 #include "color.h"
 #include "Image.h"
+#include "gpaint_exception.h"
+
 
 Image::Image() : _data(nullptr), _width(0), _height(0) {}
 
@@ -36,24 +36,14 @@ RGBColor** Image::GetPixelArray() const {
 RGBColor Image::GetPixel(size_t row, size_t column) const
 {
     if (row >= _height || column >= _width) {
-        char errorMessage[64];
-        snprintf(errorMessage, 64, "Failed to get point (%zu, %zu) with size (%zu, %zu)", 
-            column, row,
-            _width, _height
-            );
-        throw std::out_of_range(errorMessage);
+        GPAINT_EXCEPTION("Failed to get point (%zu, %zu) with size (%zu, %zu)", column, row, _width, _height);
     }
     return _data[row][column];
 }
 void Image::SetPixel(size_t row, size_t column, RGBColor color) 
 {
     if (row >= _height || column >= _width) {
-        char errorMessage[64];
-        snprintf(errorMessage, 64, "Failed to get point (%zu, %zu) with size (%zu, %zu)", 
-            column, row,
-            _width, _height
-            );
-        throw std::out_of_range(errorMessage);
+        GPAINT_EXCEPTION("Failed to get point (%zu, %zu) with size (%zu, %zu)", column, row, _width, _height);
     }
     _data[row][column] = color;
 }
@@ -71,9 +61,7 @@ void Image::reallocData(size_t width, size_t height)
 
     if (new_data == nullptr) {
         free(_data);
-        char errorMessage[64];
-        snprintf(errorMessage, 64, "Failed to allocate %d bytes", header_size + data_size);
-        throw std::runtime_error(errorMessage);
+        GPAINT_EXCEPTION("Failed to allocate %zu bytes", header_size + data_size);
     }
 
     _data = reinterpret_cast<RGBColor**>(new_data);
@@ -99,7 +87,7 @@ void Image::copyData(RGBColor **source) {
     RGBColor* raw_dst = _data [0];
 
     if (std::copy(raw_src, raw_src + npixels, raw_dst) != raw_dst + npixels) {
-        throw std::runtime_error("Failed to copy Image data.");
+        GPAINT_EXCEPTION("Failed to copy Image data.");
     }
 }
 
