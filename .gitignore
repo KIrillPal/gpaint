@@ -1,0 +1,5 @@
+#ignore compilation results
+gpaint
+.obj/
+#ignore clion files
+.idea/
