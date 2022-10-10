@@ -4,22 +4,19 @@
 #include "Filters/gpaint_filters.h"
 
 int main() {
-    ImageFilter* neg = new Filters::Negative();
-    ImageFilter* rep = new Filters::ReplaceColor(RGB::Black, RGB::White);
+    ImageFilter* gauss = new Filters::Gauss(71, 11);
 
     try {
         Image img;
-        BMPReader::loadFromFile("images/snail.bmp",img);
+        BMPReader::loadFromFile("images/img.bmp",img);
 
-        neg->transform(img);
-        rep->transform(img);
+        gauss->transform(img);
 
         BMPReader::saveToFile("images/kek.bmp", img);
     } catch (const std::exception& ex) {
         printf("Got exception: %s\n", ex.what());
     }
 
-    delete neg;
-    delete rep;
+    delete gauss;
     return 0;
 }
