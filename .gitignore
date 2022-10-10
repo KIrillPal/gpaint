@@ -1,5 +1,5 @@
 #ignore compilation results
 gpaint
-.obj/
+.obj/*
 #ignore clion files
-.idea/
+.idea/*
