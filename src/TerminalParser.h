@@ -37,6 +37,7 @@ private:
 
     std::string getUnifiedPath(std::string path);
     void setFontColor(const char* color_code);
+    CMD_STATUS getDirectory(std::filesystem::path path, std::filesystem::directory_entry& directory);
 
     std::string getHomeDir();
     std::string getCurrentDir();
