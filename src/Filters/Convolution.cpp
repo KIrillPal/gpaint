@@ -51,7 +51,11 @@ inline void Convolution::makeConvolution(RGBColor** src_pixels, RGBColor& dst_pi
     else if (G < 0) G = 0;
     if (B > 255)    B = 255;
     else if (B < 0) B = 0;
-    dst_pixel = RGBColor(std::roundf(R), std::roundf(G), std::roundf(B));
+    dst_pixel = RGBColor(
+            (uint8_t)std::roundf(R),
+            (uint8_t)std::roundf(G),
+            (uint8_t)std::roundf(B)
+            );
 }
 
 inline void Convolution::makeSafeConvolution(RGBColor** src_pixels, RGBColor& dst_pixel, size_t width, size_t height, int x, int y) {
@@ -85,7 +89,11 @@ inline void Convolution::makeSafeConvolution(RGBColor** src_pixels, RGBColor& ds
     else if (G < 0) G = 0;
     if (B > 255)    B = 255;
     else if (B < 0) B = 0;
-    dst_pixel = RGBColor(std::roundf(R), std::roundf(G), std::roundf(B));
+    dst_pixel = RGBColor(
+            (uint8_t)std::roundf(R),
+            (uint8_t)std::roundf(G),
+            (uint8_t)std::roundf(B)
+            );
 }
 
 void Convolution::completeBounds(RGBColor** dst_pixels, RGBColor **src_pixels, size_t width, size_t height) {

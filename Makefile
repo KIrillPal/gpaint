@@ -1,6 +1,7 @@
-all: obj/Image.o obj/BMP.o Filters src/main.cpp
-	g++ obj/*.o src/main.cpp -o gpaint
+all: obj/Image.o obj/BMP.o Filters obj/TerminalParser.o src/main.cpp
+	g++ obj/Image.o obj/BMP.o obj/TerminalParser.o src/main.cpp -o gpaint
 Filters: obj/Negative.o obj/ReplaceColor.o obj/Convolution.o obj/Gauss.o
+	ld -r obj/Negative.o obj/ReplaceColor.o obj/Convolution.o obj/Gauss.o -o obj/filters.o
 FilterHeaders: obj/Image.o src/Filters/ImageFilter.h src/Filters/gpaint_filters.h
 
 obj/Negative.o:     FilterHeaders src/Filters/Negative.cpp
@@ -12,6 +13,8 @@ obj/Convolution.o:  FilterHeaders src/Filters/Convolution.cpp
 obj/Gauss.o:      	FilterHeaders src/Filters/Gauss.cpp
 	g++ obj/Image.o -c src/Filters/Gauss.cpp -o obj/Gauss.o
 
+obj/TerminalParser.o: Filters src/TerminalParser.cpp src/TerminalParser.h
+	g++ obj/filters.o -c src/TerminalParser.cpp -o obj/TerminalParser.o
 obj/BMP.o: obj/Image.o src/BMP.h src/BMP.cpp
 	g++ obj/Image.o -c src/BMP.cpp -o obj/BMP.o
 obj/Image.o: src/gpaint_exception.h src/Image.h src/Image.cpp

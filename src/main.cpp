@@ -2,21 +2,37 @@
 #include "Image.h"
 #include "BMP.h"
 #include "Filters/gpaint_filters.h"
+#include "TerminalParser.h"
 
-int main() {
-    ImageFilter* gauss = new Filters::Gauss(71, 11);
+int runLineMode(TerminalParser& parser, const char** argv) {
+    return 0;
+}
 
-    try {
-        Image img;
-        BMPReader::loadFromFile("images/img.bmp",img);
+int runDirectoryMode(TerminalParser& parser) {
+    CMD_STATUS status;
 
-        gauss->transform(img);
+    do {
+        parser.outHeader();
 
-        BMPReader::saveToFile("images/kek.bmp", img);
-    } catch (const std::exception& ex) {
-        printf("Got exception: %s\n", ex.what());
-    }
+        TCommand command;
+        std::string terminal_input;
+        std::getline(std::cin, terminal_input);
 
-    delete gauss;
+        parser.parseStringToCommand(terminal_input, command);
+        status = parser.readDirCommand(command);
+
+    } while (status != CMD_STATUS::END);
+
+    return 0;
+}
+
+int runEditorMode(TerminalParser& parser) {
+    return 0;
+}
+
+
+int main(int argc, const char** argv) {
+    TerminalParser terminal;
+    runDirectoryMode(terminal);
     return 0;
 }
