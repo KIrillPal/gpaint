@@ -32,12 +32,13 @@ private:
 class Filters::Convolution : public ImageFilter {
 public:
     Convolution();
-    void init(const float* CONV_MATRIX, int CONV_SIZE);
+    void init(const float* CONV_MATRIX, int CONV_WIDTH, int CONV_HEIGHT);
     ~Convolution()               override = default;
     void transform(Image &image) override;
 private:
     const float* _conv_matrix;
-    int  _conv_size;
+    int  _conv_width;
+    int  _conv_height;
     void makeConvolution(RGBColor** src_pixels, RGBColor& dst_pixel, size_t x, size_t y);
     void completeBounds (RGBColor** dst_pixels, RGBColor** src_pixels, size_t width, size_t height);
     void makeSafeConvolution(RGBColor** src_pixels, RGBColor& dst_pixel, size_t width, size_t height, int x, int y);
@@ -45,7 +46,7 @@ private:
 
 class Filters::Clarify : public Convolution {
 public:
-    Clarify() {init(CONV_MATRIX[0], CONV_SIZE);};
+    Clarify() {init(CONV_MATRIX[0], CONV_SIZE, CONV_SIZE);};
 private:
     const int   CONV_SIZE = 3;
     const float CONV_MATRIX[3][3] = {
@@ -57,11 +58,14 @@ private:
 
 class Filters::Gauss : public Convolution {
 public:
-    Gauss(size_t filter_size, float dispersion);
+    Gauss(float dispersion, size_t filter_size = 0);
     ~Gauss() override;
+
+    void transform(Image& image) override;
 private:
     size_t _kernel_size;
     float* _kernel;
     float* makeKernel(size_t filter_size, float dispersion);
     float gaussFunction(float x, float y, float sigma);
+    float gaussFunction(float x, float sigma);
 };

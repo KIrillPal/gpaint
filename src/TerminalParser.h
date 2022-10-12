@@ -17,10 +17,12 @@ class TerminalParser {
 public:
     TerminalParser();
     TerminalParser(const char* start_directory);
+    ~TerminalParser();
 
     void parseStringToCommand(std::string input, TCommand &target);
     void parseArgsToCommand(int argc, const char** argv, TCommand &target);
-    CMD_STATUS readDirCommand(TCommand &command);
+    CMD_STATUS readDirCommand (TCommand &command);
+    CMD_STATUS readEditCommand(TCommand &command);
 
     CMD_STATUS executeLs(TCommand &args);
     CMD_STATUS executeCd(TCommand &args);
@@ -32,6 +34,8 @@ private:
     std::string _user_name;
     std::string _host_name;
     std::string _home_dir;
+
+    std::vector<ImageFilter*> _filters;
     const char* DEFAULT_FONT_COLOR = "\e[0m";
     const char* ERROR_FONT_COLOR   = "\e[1;31m";
 
@@ -43,4 +47,13 @@ private:
     std::string getCurrentDir();
     std::string getUserName();
     std::string getHostName();
+
+    CMD_STATUS readFilter(TCommand& command);
+    CMD_STATUS parseReplaceColor(TCommand& command, ImageFilter*& filter);
+    CMD_STATUS parseGauss       (TCommand& command, ImageFilter*& filter);
+
+    CMD_STATUS convertToInt   (std::string input, int& dst);
+    CMD_STATUS convertToFloat (std::string input, float& dst);
+    CMD_STATUS convertToSize  (std::string input, size_t& dst);
+    CMD_STATUS convertToByte  (std::string input, uint8_t& dst);
 };

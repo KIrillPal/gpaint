@@ -1,5 +1,5 @@
 all: obj/Image.o obj/BMP.o Filters obj/TerminalParser.o src/main.cpp
-	g++ obj/Image.o obj/BMP.o obj/TerminalParser.o src/main.cpp -o gpaint
+	g++ obj/Image.o obj/BMP.o obj/TerminalParser.o obj/filters.o src/main.cpp -o gpaint
 Filters: obj/Negative.o obj/ReplaceColor.o obj/Convolution.o obj/Gauss.o
 	ld -r obj/Negative.o obj/ReplaceColor.o obj/Convolution.o obj/Gauss.o -o obj/filters.o
 FilterHeaders: obj/Image.o src/Filters/ImageFilter.h src/Filters/gpaint_filters.h

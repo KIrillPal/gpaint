@@ -27,12 +27,26 @@ int runDirectoryMode(TerminalParser& parser) {
 }
 
 int runEditorMode(TerminalParser& parser) {
+    CMD_STATUS status;
+
+    do {
+        parser.outHeader();
+
+        TCommand command;
+        std::string terminal_input;
+        std::getline(std::cin, terminal_input);
+
+        parser.parseStringToCommand(terminal_input, command);
+        status = parser.readEditCommand(command);
+
+    } while (status != CMD_STATUS::END);
+
     return 0;
 }
 
 
 int main(int argc, const char** argv) {
     TerminalParser terminal;
-    runDirectoryMode(terminal);
+    runEditorMode(terminal);
     return 0;
 }

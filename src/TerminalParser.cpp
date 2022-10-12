@@ -18,6 +18,13 @@ TerminalParser::TerminalParser(const char *start_directory) {
     else selected_path = getUnifiedPath(start_directory);
 }
 
+TerminalParser::~TerminalParser() {
+    for (auto filter : _filters) {
+        delete filter;
+    }
+}
+
+
 void TerminalParser::parseStringToCommand(std::string input, TCommand &target) {
     std::istringstream input_stream(input);
     std::string buffer;
@@ -42,13 +49,11 @@ CMD_STATUS TerminalParser::readDirCommand(TCommand &command) {
         return executeCd(command);
     if (command[0] == "exit" || command[0] == "q")
         return END;
-    else {
-        setFontColor(ERROR_FONT_COLOR);
-        printf("unknown command: '%s'\n", command[0].c_str());
-        setFontColor(DEFAULT_FONT_COLOR);
-    }
 
-    return OK;
+    setFontColor(ERROR_FONT_COLOR);
+    printf("unknown command: '%s'\n", command[0].c_str());
+    setFontColor(DEFAULT_FONT_COLOR);
+    return FAILED;
 }
 
 CMD_STATUS TerminalParser::executeLs(TCommand &args) {
@@ -201,4 +206,154 @@ CMD_STATUS TerminalParser::getDirectory(std::filesystem::path path, std::filesys
         return FAILED;
     }
     return OK;
+}
+
+
+
+
+CMD_STATUS TerminalParser::readEditCommand(TCommand &command) {
+    if (command.empty())
+        return FAILED;
+
+    if (command[0] == "reset") {
+
+    }
+    if (command[0] == "fstatus") {
+
+    }
+    if (command[0] == "cstatus") {
+
+    }
+    if (command[0] == "save") {
+
+    }
+    if (command[0] == "exit" || command[0] == "q")
+        return END;
+    if (readFilter(command) == OK)
+        return OK;
+
+    setFontColor(ERROR_FONT_COLOR);
+    printf("unknown command: '%s'\n", command[0].c_str());
+    setFontColor(DEFAULT_FONT_COLOR);
+    return FAILED;
+}
+
+CMD_STATUS TerminalParser::readFilter(TCommand& command) {
+
+    ImageFilter* filter = nullptr;
+    if (command[0] == "negative") {
+        filter = new Filters::Negative();
+    }
+    else if (command[0] == "replace-color") {
+        if (parseReplaceColor(command, filter) == FAILED)
+            return OK;
+    }
+    else if (command[0] == "clarify") {
+        filter = new Filters::Clarify();
+    }
+    else if (command[0] == "gauss") {
+        if (parseGauss(command, filter) == FAILED)
+            return OK;
+    }
+
+    if (filter == nullptr)
+        return FAILED;
+
+    _filters.push_back(filter);
+    printf("Added filter '%s'\n", command[0].c_str());
+    return OK;
+}
+
+CMD_STATUS TerminalParser::parseReplaceColor(TCommand& command, ImageFilter*& filter) {
+    if (command.size() < 7) {
+        setFontColor(ERROR_FONT_COLOR);
+        printf("too few arguments. Format: replace-color <R1> <G1> <B1> <R2> <G2> <B2>");
+        setFontColor(DEFAULT_FONT_COLOR);
+        return FAILED;
+    }
+    RGBColor from(RGB::Null);
+    RGBColor to  (RGB::Null);
+    uint8_t channels[6];
+    for (size_t iclr = 0; iclr < 6; ++iclr) {
+        if (convertToByte(command[iclr + 1], channels[iclr]) == FAILED)
+            return FAILED;
+    }
+
+    from.R = channels[0];
+    from.G = channels[1];
+    from.B = channels[2];
+    to.R = channels[0];
+    to.G = channels[1];
+    to.B = channels[2];
+
+    filter = new Filters::ReplaceColor(from, to);
+    return OK;
+}
+
+CMD_STATUS TerminalParser::parseGauss(TCommand &command, ImageFilter *&filter) {
+    if (command.size() < 2) {
+        setFontColor(ERROR_FONT_COLOR);
+        printf("too few arguments. Format: gauss <dispersion> [<matrix-size>]");
+        setFontColor(DEFAULT_FONT_COLOR);
+        return FAILED;
+    }
+    float dispersion;
+    if (convertToFloat(command[1], dispersion) == FAILED)
+        return FAILED;
+
+    if (command.size() < 3) {
+        filter = new Filters::Gauss(dispersion);
+        return OK;
+    }
+
+    size_t matrix_size;
+    if (convertToSize(command[2], matrix_size) == FAILED)
+        return FAILED;
+
+    filter = new Filters::Gauss(dispersion, matrix_size);
+    return OK;
+}
+
+CMD_STATUS TerminalParser::convertToInt(std::string input, int &dst) {
+    int got = 0;
+    if (sscanf(input.c_str(), "%d%n", &dst, &got) == 1 && got == input.size())
+        return OK;
+
+    setFontColor(ERROR_FONT_COLOR);
+    printf("argument \"%s\" must be an integer\n", input.c_str());
+    setFontColor(DEFAULT_FONT_COLOR);
+    return FAILED;
+}
+
+CMD_STATUS TerminalParser::convertToFloat(std::string input, float &dst) {
+    int got = 0;
+    if (sscanf(input.c_str(), "%f%n", &dst, &got) == 1 && got == input.size())
+        return OK;
+
+    setFontColor(ERROR_FONT_COLOR);
+    printf("argument \"%s\" must be a float integer\n", input.c_str());
+    setFontColor(DEFAULT_FONT_COLOR);
+    return FAILED;
+}
+
+CMD_STATUS TerminalParser::convertToSize(std::string input, size_t &dst) {
+    int got = 0;
+    if (sscanf(input.c_str(), "%zu%n", &dst, &got) == 1 && got == input.size())
+        return OK;
+
+    setFontColor(ERROR_FONT_COLOR);
+    printf("argument \"%s\" must be a size type\n", input.c_str());
+    setFontColor(DEFAULT_FONT_COLOR);
+    return FAILED;
+}
+
+CMD_STATUS TerminalParser::convertToByte(std::string input, uint8_t &dst) {
+    int got = 0;
+    if (sscanf(input.c_str(), "%hhu%n", &dst, &got) == 1 && got == input.size())
+        return OK;
+
+    setFontColor(ERROR_FONT_COLOR);
+    printf("argument \"%s\" must have a byte type (0...255)\n", input.c_str());
+    setFontColor(DEFAULT_FONT_COLOR);
+    return FAILED;
 }
