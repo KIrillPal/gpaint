@@ -7,6 +7,7 @@
 #include "BMP.h"
 
 typedef std::vector<std::string> TCommand;
+typedef std::filesystem::path TPath;
 
 enum CMD_STATUS {
     OK     = 0,
@@ -30,6 +31,8 @@ public:
     CMD_STATUS executeCd(TCommand &args);
     CMD_STATUS executeEdit(TCommand &args);
     CMD_STATUS executeSave(TCommand &args);
+    CMD_STATUS transformFile(TPath file_in, TPath file_out);
+    void outProgressBar(const char* filename, int result, int total);
 
     void outHeader(std::string format = "\e[1;32m");
 private:
@@ -40,13 +43,13 @@ private:
     std::string _host_name;
     std::string _home_dir;
 
-    std::vector<ImageFilter*> _filters;
+    std::vector<ImageFilter*> selected_filters;
     const char* DEFAULT_FONT_COLOR = "\e[0m";
     const char* ERROR_FONT_COLOR   = "\e[1;31m";
 
     std::string getUnifiedPath(std::string path);
     void setFontColor(const char* color_code);
-    CMD_STATUS getDirectory(std::filesystem::path path, std::filesystem::directory_entry& directory);
+    CMD_STATUS getDirectory(TPath path, std::filesystem::directory_entry& directory);
 
     std::string getHomeDir();
     std::string getCurrentDir();

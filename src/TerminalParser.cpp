@@ -21,7 +21,7 @@ TerminalParser::TerminalParser(const char *start_directory) {
 }
 
 TerminalParser::~TerminalParser() {
-    for (auto filter : _filters) {
+    for (auto filter : selected_filters) {
         delete filter;
     }
 }
@@ -53,8 +53,11 @@ CMD_STATUS TerminalParser::readDirCommand(TCommand &command) {
         return END;
     if (command[0].size() >= 5) {
         size_t sz = command[0].size();
-        if (command[0].substr(sz - 4, 4) == ".bmp")
+        if (command[0].substr(sz - 4, 4) == ".bmp") {
+            Image test_img;
+            BMPReader::loadFromFile("images/img.bmp", test_img);
             return executeEdit(command);
+        }
     }
     setFontColor(ERROR_FONT_COLOR);
     printf("unknown command: '%s'\n", command[0].c_str());
@@ -64,7 +67,7 @@ CMD_STATUS TerminalParser::readDirCommand(TCommand &command) {
 
 CMD_STATUS TerminalParser::executeLs(TCommand &args) {
     std::filesystem::directory_entry chosen_dir;
-    std::filesystem::path path;
+    TPath path;
 
     if (args.size() > 1)
          path = getUnifiedPath(args[1]);
@@ -90,7 +93,7 @@ CMD_STATUS TerminalParser::executeLs(TCommand &args) {
 
 CMD_STATUS TerminalParser::executeCd(TCommand &args) {
     std::filesystem::directory_entry chosen_dir;
-    std::filesystem::path path;
+    TPath path;
 
     if (args.size() > 1)
          path = getUnifiedPath(args[1]);
@@ -115,12 +118,10 @@ struct remove_extend<T[]> {
 };
 
 CMD_STATUS TerminalParser::executeEdit(TCommand &args) {
-    std::filesystem::path source = getUnifiedPath(args[0]);
+    TPath source = getUnifiedPath(args[0]);
     if (source == selected_path)
         return FAILED;
-    Image test_img;
     try {
-        BMPReader::loadFromFile(source.c_str(), test_img);
         selected_files.push_back(source);
         selected_format = source.filename();
         printf("Added file '%s'\n", source.c_str());
@@ -215,7 +216,7 @@ void TerminalParser::outHeader(std::string format) {
     setFontColor(DEFAULT_FONT_COLOR);
 }
 
-CMD_STATUS TerminalParser::getDirectory(std::filesystem::path path, std::filesystem::directory_entry& directory) {
+CMD_STATUS TerminalParser::getDirectory(TPath path, std::filesystem::directory_entry& directory) {
     std::error_code err;
     if (path.empty())
         path += '/';
@@ -258,10 +259,21 @@ CMD_STATUS TerminalParser::readEditCommand(TCommand &command) {
     if (command[0] == "cstatus") {
 
     }
-    if (command[0] == "save") {
+    if (command[0] == "ldf") {
+        
+    }
+    if (command[0] == "svf") {
 
     }
+    if (command[0] == "cstatus") {
+
+    }
+    if (command[0] == "save") {
+        return executeSave(command);
+    }
     if (command[0] == "exit" || command[0] == "q") {
+        selected_files.clear();
+        selected_filters.clear();
         selected_format = selected_path.filename();
         return END;
     }
@@ -279,19 +291,74 @@ CMD_STATUS TerminalParser::executeSave(TCommand &args) {
         setFontColor(ERROR_FONT_COLOR);
         printf("too few arguments. Format: save <destination name>\n");
         setFontColor(DEFAULT_FONT_COLOR);
+        return FAILED;
     }
 
-    std::filesystem::path destination = getUnifiedPath(args[0]);
+    TPath destination = getUnifiedPath(args[1]);
+    printf("got %s\n", destination.c_str());
     if (destination == selected_path)
         return FAILED;
-    if (destination.filename().extension() != "bmp") {
+    if (destination.filename().extension() != ".bmp") {
         setFontColor(ERROR_FONT_COLOR);
         printf("Invalid extension '%s'. Could save 'bmp' only\n",
                destination.filename().extension().c_str());
         setFontColor(DEFAULT_FONT_COLOR);
+        return FAILED;
     }
 
+    int transformed = 0;
+    for (auto file : selected_files) {
+        transformed += (transformFile(file, destination) == OK);
+    }
+
+    printf("Successfully saved %d file%c\n",
+           transformed, selected_files.size() > 1 ? 's' : ' ');
     return OK;
+}
+
+CMD_STATUS TerminalParser::transformFile(TPath file_in, TPath file_out) {
+    try {
+        Image image;
+        size_t transformed = 0, total = selected_filters.size() + 2;
+        outProgressBar(file_in.filename().c_str(), transformed, total);
+
+        BMPReader::loadFromFile(file_in.c_str(), image);
+        RGBColor pix = image.GetPixel(0, 0);
+        pix = image.GetPixel(425, 639);
+        outProgressBar(file_in.filename().c_str(), ++transformed, total);
+        for (auto filter : selected_filters)
+        {
+            filter->transform(image);
+            outProgressBar(file_in.filename().c_str(), ++transformed, total);
+        }
+
+        BMPReader::saveToFile(file_out.c_str(), image);
+        outProgressBar(file_in.filename().c_str(), ++transformed, total);
+
+    } catch (std::runtime_error& ex) {
+        printf("\n'%s': Process failed. %s", file_out.c_str(), ex.what());
+        return FAILED;
+    }
+    printf("\n");
+    return OK;
+}
+
+void TerminalParser::outProgressBar(const char* filename, int result, int total) {
+    const size_t TASKBAR_SIZE = 20;
+    int percent = result * 100 / total;
+
+    if (result > 0)
+        printf("\r");
+
+    printf("'%s': Process %3d%% [\e[1;37m", filename, percent);
+
+    int filled = TASKBAR_SIZE * result / total;
+
+    printf("%s\e[1;0m%s\e[0m]",
+           std::string( filled, '|').c_str(),
+           std::string( TASKBAR_SIZE - filled, '|' ).c_str()
+    );
+    fflush(stdout);
 }
 
 CMD_STATUS TerminalParser::readFilter(TCommand& command) {
@@ -315,7 +382,7 @@ CMD_STATUS TerminalParser::readFilter(TCommand& command) {
     if (filter == nullptr)
         return FAILED;
 
-    _filters.push_back(filter);
+    selected_filters.push_back(filter);
     printf("Added filter '%s'\n", command[0].c_str());
     return OK;
 }
@@ -413,3 +480,4 @@ CMD_STATUS TerminalParser::convertToByte(std::string input, uint8_t &dst) {
     setFontColor(DEFAULT_FONT_COLOR);
     return FAILED;
 }
+

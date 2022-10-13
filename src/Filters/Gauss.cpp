@@ -5,6 +5,10 @@ using namespace Filters;
 Gauss::Gauss(float dispersion, size_t filter_size) {
     if (filter_size == 0)
         filter_size = std::ceil(6 * dispersion);
+
+    if ((filter_size & 1) == 0)
+        ++filter_size;
+
     _kernel_size = filter_size;
     _kernel      = makeKernel(filter_size, dispersion);
 }

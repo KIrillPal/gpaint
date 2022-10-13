@@ -11,31 +11,43 @@
     if (file == nullptr)
         GPAINT_EXCEPTION("Couldn't open file \"%s\" to load", path);
 
-    if (!readBMPFileHeader (file, &file_header))
+    if (!readBMPFileHeader (file, &file_header)) {
+        fclose(file);
         GPAINT_EXCEPTION("Couldn't open file \"%s\" to load", path);
+    }
 
-    if (!readBMPInfoHeader (file, &info_header))
+    if (!readBMPInfoHeader (file, &info_header)) {
+        fclose(file);
         GPAINT_EXCEPTION("Invalid BMP info header format of file \"%s\"", path);
+    }
 
     if (info_header.size == sizeof(BMPInfoHeader) + sizeof(BMPColorHeader)) {
-        if (!readBMPColorHeader(file, &color_header))
+        if (!readBMPColorHeader(file, &color_header)) {
+            fclose(file);
             GPAINT_EXCEPTION("Invalid BMP color header format of file \"%s\"", path);
+        }
     }
     fseek(file, file_header.offset_data, 0);
 
     image = Image(info_header.width, info_header.height);
     if (color_header.color_space_type == COLOR_SPACE::sRGB)
     {
-        if (info_header.bit_count != 24)
+        if (info_header.bit_count != 24) {
+            fclose(file);
             GPAINT_EXCEPTION("Invalid color format of file \"%s\"", path);
-        if (!readImageRGB(file, image, info_header))
+        }
+        if (!readImageRGB(file, image, info_header)) {
+            fclose(file);
             GPAINT_EXCEPTION("Invalid BMP meta of file \"%s\". Failed to load data.", path);
+        }
     }
     else {
+        fclose(file);
         GPAINT_EXCEPTION("File \"%s\" has incorrect color space code: %X",
                          path, color_header.color_space_type);
     }
-}
+     fclose(file);
+ }
 
 void BMPReader::saveToFile(const char* path, Image& image, uint32_t color_space_type) {
     BMPFileHeader  file_header;
@@ -44,25 +56,36 @@ void BMPReader::saveToFile(const char* path, Image& image, uint32_t color_space_
     char errorMessage[64];
 
     FILE * file = fopen(path, "wb");
-    if (file == nullptr)
+    if (file == nullptr) {
+        fclose(file);
         GPAINT_EXCEPTION("Couldn't open file \"%s\" to save", path);
+    }
 
     makesRGBHeaders(file_header, info_header, color_header, image);
 
-    if (fwrite(&file_header, sizeof(file_header), 1, file) != 1)
+    if (fwrite(&file_header, sizeof(file_header), 1, file) != 1) {
+        fclose(file);
         GPAINT_EXCEPTION("Couldn't save file header of file \"%s\"", path);
+    }
 
-    if (fwrite(&info_header, sizeof(info_header), 1, file) != 1)
+    if (fwrite(&info_header, sizeof(info_header), 1, file) != 1) {
+        fclose(file);
         GPAINT_EXCEPTION("Couldn't save info header of file \"%s\"", path);
+    }
 
     if (color_space_type != COLOR_SPACE::sRGB)
     {
-        if (fwrite(&color_header, sizeof(color_header), 1, file) != 1)
+        if (fwrite(&color_header, sizeof(color_header), 1, file) != 1) {
+            fclose(file);
             GPAINT_EXCEPTION("Couldn't save color header of file \"%s\"", path);
+        }
     }
 
-    if (!writeImageRGB(file, image))
+    if (!writeImageRGB(file, image)) {
+        fclose(file);
         GPAINT_EXCEPTION("Couldn't write image data to the file \"%s\"", path);
+    }
+    fclose(file);
 }
 
 bool BMPReader::readBMPFileHeader(FILE* file, BMPFileHeader* header) {
