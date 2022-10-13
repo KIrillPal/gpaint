@@ -4,13 +4,15 @@
 #include <string>
 #include <filesystem>
 #include "Filters/gpaint_filters.h"
+#include "BMP.h"
 
 typedef std::vector<std::string> TCommand;
 
 enum CMD_STATUS {
     OK     = 0,
     FAILED = 1,
-    END    = -1
+    END    = -1,
+    EDIT   = 2
 };
 
 class TerminalParser {
@@ -26,11 +28,14 @@ public:
 
     CMD_STATUS executeLs(TCommand &args);
     CMD_STATUS executeCd(TCommand &args);
+    CMD_STATUS executeEdit(TCommand &args);
+    CMD_STATUS executeSave(TCommand &args);
 
-    void outHeader();
-
+    void outHeader(std::string format = "\e[1;32m");
 private:
     std::filesystem::path selected_path;
+    std::vector<std::filesystem::path> selected_files;
+    std::string selected_format;
     std::string _user_name;
     std::string _host_name;
     std::string _home_dir;

@@ -16,6 +16,8 @@ TerminalParser::TerminalParser(const char *start_directory) {
     if (start_directory == nullptr)
          selected_path = getUnifiedPath(getCurrentDir());
     else selected_path = getUnifiedPath(start_directory);
+
+    selected_format = selected_path.filename();
 }
 
 TerminalParser::~TerminalParser() {
@@ -49,7 +51,11 @@ CMD_STATUS TerminalParser::readDirCommand(TCommand &command) {
         return executeCd(command);
     if (command[0] == "exit" || command[0] == "q")
         return END;
-
+    if (command[0].size() >= 5) {
+        size_t sz = command[0].size();
+        if (command[0].substr(sz - 4, 4) == ".bmp")
+            return executeEdit(command);
+    }
     setFontColor(ERROR_FONT_COLOR);
     printf("unknown command: '%s'\n", command[0].c_str());
     setFontColor(DEFAULT_FONT_COLOR);
@@ -94,7 +100,36 @@ CMD_STATUS TerminalParser::executeCd(TCommand &args) {
         return FAILED;
 
     selected_path = getUnifiedPath(chosen_dir.path());
+    selected_format = selected_path.filename();
     return OK;
+}
+
+template<typename T>
+struct remove_extend {
+    static T v;
+};
+
+template<typename T>
+struct remove_extend<T[]> {
+    static T v;
+};
+
+CMD_STATUS TerminalParser::executeEdit(TCommand &args) {
+    std::filesystem::path source = getUnifiedPath(args[0]);
+    if (source == selected_path)
+        return FAILED;
+    Image test_img;
+    try {
+        BMPReader::loadFromFile(source.c_str(), test_img);
+        selected_files.push_back(source);
+        selected_format = source.filename();
+        printf("Added file '%s'\n", source.c_str());
+
+    } catch (std::runtime_error &ex) {
+        printf("Failed to load image: %s\n", ex.what());
+        return FAILED;
+    }
+    return EDIT;
 }
 
 std::string TerminalParser::getUnifiedPath(std::string path) {
@@ -108,7 +143,6 @@ std::string TerminalParser::getUnifiedPath(std::string path) {
     std::string abs_path = path;
 
     size_t up_pos = path.find("/..");
-    //printf("got %s\n", path.c_str());
     while (up_pos != std::string::npos) {
         size_t l_pos = path.find_last_of("/", up_pos - 1);
         up_pos = path.find("/..");
@@ -167,20 +201,16 @@ std::string TerminalParser::getHostName() {
     return host_name;
 }
 
-void TerminalParser::outHeader() {
-    std::string dir_name;
-    if (!dir_name.empty() && dir_name.back() == '/')
-         dir_name = selected_path.parent_path().filename();
-    else dir_name = selected_path.filename();
-
+void TerminalParser::outHeader(std::string format) {
+    std::string dir_name = selected_format;
     if (dir_name.empty())
         dir_name = "/";
 
-    setFontColor("\e[1;32m");
+    setFontColor(format.c_str());
     printf("[%s@%s", _user_name.c_str(), _host_name.c_str());
     setFontColor("\e[1;37m");
-    printf(" %s", dir_name.c_str());
-    setFontColor("\e[1;32m");
+    printf(" %s", selected_format.c_str());
+    setFontColor(format.c_str());
     printf("]$ ");
     setFontColor(DEFAULT_FONT_COLOR);
 }
@@ -193,11 +223,7 @@ CMD_STATUS TerminalParser::getDirectory(std::filesystem::path path, std::filesys
 
     if (err.value() != 0) {
         setFontColor(ERROR_FONT_COLOR);
-
-        if (err.value() == 20) {
-            printf("Path \'%s\' is a file. Error code: %d\n", path.c_str(), err.value());
-        }
-        else if (err.value() == 13) {
+        if (err.value() == 13) {
             printf("Permission denied: \'%s\'. Error code: %d\n", path.c_str(), err.value());
         }
         else printf("invalid path \'%s\'. Error code: %d\n", path.c_str(), err.value());
@@ -205,6 +231,14 @@ CMD_STATUS TerminalParser::getDirectory(std::filesystem::path path, std::filesys
         setFontColor(DEFAULT_FONT_COLOR);
         return FAILED;
     }
+
+    if (!directory.is_directory()) {
+        setFontColor(ERROR_FONT_COLOR);
+        printf("Path \'%s\' is a file. Error code: 20\n", path.c_str());
+        setFontColor(DEFAULT_FONT_COLOR);
+        return FAILED;
+    }
+
     return OK;
 }
 
@@ -227,8 +261,10 @@ CMD_STATUS TerminalParser::readEditCommand(TCommand &command) {
     if (command[0] == "save") {
 
     }
-    if (command[0] == "exit" || command[0] == "q")
+    if (command[0] == "exit" || command[0] == "q") {
+        selected_format = selected_path.filename();
         return END;
+    }
     if (readFilter(command) == OK)
         return OK;
 
@@ -236,6 +272,26 @@ CMD_STATUS TerminalParser::readEditCommand(TCommand &command) {
     printf("unknown command: '%s'\n", command[0].c_str());
     setFontColor(DEFAULT_FONT_COLOR);
     return FAILED;
+}
+
+CMD_STATUS TerminalParser::executeSave(TCommand &args) {
+    if (args.size() < 2) {
+        setFontColor(ERROR_FONT_COLOR);
+        printf("too few arguments. Format: save <destination name>\n");
+        setFontColor(DEFAULT_FONT_COLOR);
+    }
+
+    std::filesystem::path destination = getUnifiedPath(args[0]);
+    if (destination == selected_path)
+        return FAILED;
+    if (destination.filename().extension() != "bmp") {
+        setFontColor(ERROR_FONT_COLOR);
+        printf("Invalid extension '%s'. Could save 'bmp' only\n",
+               destination.filename().extension().c_str());
+        setFontColor(DEFAULT_FONT_COLOR);
+    }
+
+    return OK;
 }
 
 CMD_STATUS TerminalParser::readFilter(TCommand& command) {

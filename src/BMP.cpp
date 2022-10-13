@@ -104,7 +104,6 @@ bool BMPReader::readImageRGB(FILE* file, Image& image, BMPInfoHeader bmp_info) {
     if (fread(img_data, byte_count, array_size, file) != array_size) {
         return false;
     }
-    printf("%02X%02X%02X\n", img_data->R, img_data->G, img_data->B);
     return true;
 }
 
