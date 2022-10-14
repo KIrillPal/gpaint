@@ -52,6 +52,7 @@ private:
     static bool readOffset(FILE *file, size_t offset);
 
     static bool readImageRGB (FILE *file, Image &image, BMPInfoHeader bmp_info);
+    static bool readImageTBL (FILE *file, Image &image, BMPFileHeader file_info, BMPInfoHeader bmp_info);
     static bool writeImageRGB(FILE* file, Image& image);
 
     static void makesRGBHeaders(BMPFileHeader &fh, BMPInfoHeader &ih, BMPColorHeader &ch, const Image& image);

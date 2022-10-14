@@ -8,6 +8,9 @@ namespace Filters {
     class Clarify;
     class Convolution;
     class Gauss;
+    class Gray;
+    class Edges;
+    class Sobel;
 }
 
 class Filters::Negative : public ImageFilter {
@@ -39,9 +42,9 @@ private:
     const float* _conv_matrix;
     int  _conv_width;
     int  _conv_height;
-    void makeConvolution(RGBColor** src_pixels, RGBColor& dst_pixel, size_t x, size_t y);
+    virtual void makeConvolution(RGBColor** src_pixels, RGBColor& dst_pixel, size_t x, size_t y);
     void completeBounds (RGBColor** dst_pixels, RGBColor** src_pixels, size_t width, size_t height);
-    void makeSafeConvolution(RGBColor** src_pixels, RGBColor& dst_pixel, size_t width, size_t height, int x, int y);
+    virtual void makeSafeConvolution(RGBColor** src_pixels, RGBColor& dst_pixel, size_t width, size_t height, int x, int y);
 };
 
 class Filters::Clarify : public Convolution {
@@ -68,4 +71,45 @@ private:
     float* makeKernel(size_t filter_size, float dispersion);
     float gaussFunction(float x, float y, float sigma);
     float gaussFunction(float x, float sigma);
+};
+
+class Filters::Gray : public ImageFilter {
+public:
+    Gray() = default;
+    ~Gray()                      override = default;
+    void transform(Image &image) override;
+private:
+};
+
+class Filters::Edges : public Convolution {
+public:
+    Edges() {init(CONV_MATRIX[0], CONV_SIZE, CONV_SIZE);};
+private:
+    const int   CONV_SIZE = 3;
+    const float CONV_MATRIX[3][3] = {
+            {1, 2, 1},
+            {0,  0, 0},
+            {-1, -2, -1}
+    };
+};
+
+class Filters::Sobel : public Convolution {
+public:
+    Sobel();
+private:
+    void makeConvolution(RGBColor** src_pixels, RGBColor& dst_pixel, size_t x, size_t y) override;
+    void makeSafeConvolution(RGBColor** src_pixels, RGBColor& dst_pixel, size_t width, size_t height, int x, int y) override;
+    float getPixelBrightness(RGBColor pixel);
+
+    const int   CONV_SIZE = 3;
+    const float CONV_Gx[3][3] = {
+            {-1, -2, -1},
+            {0,  0, 0},
+            {1, 2, 1}
+    };
+    const float CONV_Gy[3][3] = {
+            {-1, 0, 1},
+            {-2,  0, 2},
+            {-1, 0, 1}
+    };
 };

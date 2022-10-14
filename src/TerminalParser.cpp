@@ -122,6 +122,8 @@ CMD_STATUS TerminalParser::executeEdit(TCommand &args) {
     if (source == selected_path)
         return FAILED;
     try {
+        Image img_test;
+        BMPReader::loadFromFile(source.c_str(), img_test);
         selected_files.push_back(source);
         selected_format = source.filename();
         printf("Added file '%s'\n", source.c_str());
@@ -291,7 +293,7 @@ CMD_STATUS TerminalParser::executeSave(TCommand &args) {
     }
 
     printf("Successfully saved %d file%c\n",
-           transformed, selected_files.size() > 1 ? 's' : ' ');
+           transformed, selected_files.size() != 1 ? 's' : ' ');
     return OK;
 }
 
@@ -313,7 +315,7 @@ CMD_STATUS TerminalParser::transformFile(TPath file_in, TPath file_out) {
         outProgressBar(file_in.filename().c_str(), ++transformed, total);
 
     } catch (std::runtime_error& ex) {
-        printf("\n'%s': Process failed. %s", file_out.c_str(), ex.what());
+        printf("\n'%s': Process failed. %s\n", file_out.c_str(), ex.what());
         return FAILED;
     }
     printf("\n");
@@ -354,6 +356,15 @@ CMD_STATUS TerminalParser::readFilter(TCommand& command) {
     else if (command[0] == "gauss") {
         if (parseGauss(command, filter) == FAILED)
             return OK;
+    }
+    else if (command[0] == "gray") {
+        filter = new Filters::Gray();
+    }
+    else if (command[0] == "edges") {
+        filter = new Filters::Edges();
+    }
+    else if (command[0] == "sobel") {
+        filter = new Filters::Sobel();
     }
 
     if (filter == nullptr)

@@ -32,13 +32,21 @@
     image = Image(info_header.width, info_header.height);
     if (color_header.color_space_type == COLOR_SPACE::sRGB)
     {
-        if (info_header.bit_count != 24) {
+        if (info_header.bit_count == 8) {
+            if (!readImageTBL(file, image, file_header, info_header)) {
+                fclose(file);
+                GPAINT_EXCEPTION("Invalid color table of file \"%s\". Failed to load data.", path);
+            }
+        }
+        else if (info_header.bit_count == 24) {
+            if (!readImageRGB(file, image, info_header)) {
+                fclose(file);
+                GPAINT_EXCEPTION("Invalid BMP meta of file \"%s\". Failed to load data.", path);
+            }
+        }
+        else {
             fclose(file);
             GPAINT_EXCEPTION("Invalid color format of file \"%s\"", path);
-        }
-        if (!readImageRGB(file, image, info_header)) {
-            fclose(file);
-            GPAINT_EXCEPTION("Invalid BMP meta of file \"%s\". Failed to load data.", path);
         }
     }
     else {
@@ -127,6 +135,32 @@ bool BMPReader::readImageRGB(FILE* file, Image& image, BMPInfoHeader bmp_info) {
     if (fread(img_data, byte_count, array_size, file) != array_size) {
         return false;
     }
+    return true;
+}
+
+bool BMPReader::readImageTBL(FILE *file, Image &image, BMPFileHeader file_info, BMPInfoHeader bmp_info)
+{
+    fseek(file, sizeof(file_info) + bmp_info.size, 0);
+    unsigned color_table[256];
+    if (fread(color_table, sizeof(unsigned), bmp_info.colors_used, file) != bmp_info.colors_used) {
+        return false;
+    }
+
+    size_t byte_count  = sizeof(RGBColor);
+    size_t array_size  = bmp_info.width * bmp_info.height;
+    RGBColor* img_data = image.GetPixelArray()[0];
+
+    fseek(file, file_info.offset_data, 0);
+    uint8_t* codes = new uint8_t [array_size];
+    if (fread(codes, sizeof(uint8_t), array_size, file) != array_size) {
+        return false;
+    }
+
+    for (size_t i = 0; i < array_size; ++i) {
+        img_data[i] = RGBColor(color_table[codes[i]]);
+    }
+
+    delete[] codes;
     return true;
 }
 

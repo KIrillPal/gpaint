@@ -1,7 +1,7 @@
 all: obj/Image.o obj/BMP.o Filters obj/TerminalParser.o src/main.cpp
 	g++ obj/Image.o obj/BMP.o obj/TerminalParser.o obj/filters.o src/main.cpp -o gpaint
-Filters: obj/Negative.o obj/ReplaceColor.o obj/Convolution.o obj/Gauss.o
-	ld -r obj/Negative.o obj/ReplaceColor.o obj/Convolution.o obj/Gauss.o -o obj/filters.o
+Filters: obj/Negative.o obj/ReplaceColor.o obj/Convolution.o obj/Gauss.o obj/Gray.o obj/Sobel.o
+	ld -r obj/Negative.o obj/ReplaceColor.o obj/Convolution.o obj/Gauss.o obj/Gray.o obj/Sobel.o -o obj/filters.o
 FilterHeaders: src/Filters/ImageFilter.h src/Filters/gpaint_filters.h
 
 obj/Negative.o:     FilterHeaders src/Filters/Negative.cpp
@@ -12,6 +12,10 @@ obj/Convolution.o:  FilterHeaders src/Filters/Convolution.cpp
 	g++ -c src/Filters/Convolution.cpp -o obj/Convolution.o
 obj/Gauss.o:      	FilterHeaders src/Filters/Gauss.cpp
 	g++ -c src/Filters/Gauss.cpp -o obj/Gauss.o
+obj/Gray.o:      	FilterHeaders src/Filters/Gray.cpp
+	g++ -c src/Filters/Gray.cpp -o obj/Gray.o
+obj/Sobel.o:      	FilterHeaders src/Filters/Sobel.cpp
+	g++ -c src/Filters/Sobel.cpp -o obj/Sobel.o
 
 obj/TerminalParser.o: Filters src/TerminalParser.cpp src/TerminalParser.h
 	g++ -c src/TerminalParser.cpp -o obj/TerminalParser.o
