@@ -5,6 +5,8 @@
 #include "TerminalParser.h"
 #include "gpaint_exception.h"
 
+const char* DEFAULT_FONT_COLOR = "\e[0m";
+const char* ERROR_FONT_COLOR   = "\e[1;31m";
 
 TerminalParser::TerminalParser() : TerminalParser(nullptr) {}
 
@@ -59,9 +61,7 @@ CMD_STATUS TerminalParser::readDirCommand(TCommand &command) {
             return executeEdit(command);
         }
     }
-    setFontColor(ERROR_FONT_COLOR);
-    printf("unknown command: '%s'\n", command[0].c_str());
-    setFontColor(DEFAULT_FONT_COLOR);
+    GPAINT_EXCEPTION("unknown command: '%s'", command[0].c_str());
     return FAILED;
 }
 
@@ -160,12 +160,8 @@ std::string TerminalParser::getUnifiedPath(std::string path) {
         sm_pos = path.find("/./");
     }
 
-    if (path[0] != '/') {
-        setFontColor(ERROR_FONT_COLOR);
-        printf("Invalid absolute path '%s'\n", abs_path.c_str());
-        setFontColor(DEFAULT_FONT_COLOR);
-        return selected_path;
-    }
+    if (path[0] != '/')
+        GPAINT_EXCEPTION("Invalid absolute path '%s'\n", abs_path.c_str())
 
     while (!path.empty() && path.back() == '/')
         path.pop_back();
@@ -224,21 +220,13 @@ CMD_STATUS TerminalParser::getDirectory(TPath path, std::filesystem::directory_e
 
     if (err.value() != 0) {
         setFontColor(ERROR_FONT_COLOR);
-        if (err.value() == 13) {
-            printf("Permission denied: \'%s\'. Error code: %d\n", path.c_str(), err.value());
-        }
-        else printf("invalid path \'%s\'. Error code: %d\n", path.c_str(), err.value());
-
-        setFontColor(DEFAULT_FONT_COLOR);
-        return FAILED;
+        if (err.value() == 13)
+             GPAINT_EXCEPTION("Permission denied: \'%s\'. Error code: %d", path.c_str(), err.value())
+        else GPAINT_EXCEPTION("invalid path \'%s\'. Error code: %d", path.c_str(), err.value())
     }
 
-    if (!directory.is_directory()) {
-        setFontColor(ERROR_FONT_COLOR);
-        printf("Path \'%s\' is a file. Error code: 20\n", path.c_str());
-        setFontColor(DEFAULT_FONT_COLOR);
-        return FAILED;
-    }
+    if (!directory.is_directory())
+        GPAINT_EXCEPTION("Path \'%s\' is a file. Error code: 20", path.c_str())
 
     return OK;
 }
@@ -280,29 +268,20 @@ CMD_STATUS TerminalParser::readEditCommand(TCommand &command) {
     if (readFilter(command) == OK)
         return OK;
 
-    setFontColor(ERROR_FONT_COLOR);
-    printf("unknown command: '%s'\n", command[0].c_str());
-    setFontColor(DEFAULT_FONT_COLOR);
+    GPAINT_EXCEPTION("unknown command: '%s'", command[0].c_str())
     return FAILED;
 }
 
 CMD_STATUS TerminalParser::executeSave(TCommand &args) {
-    if (args.size() < 2) {
-        setFontColor(ERROR_FONT_COLOR);
-        printf("too few arguments. Format: save <destination name>\n");
-        setFontColor(DEFAULT_FONT_COLOR);
-        return FAILED;
-    }
+    if (args.size() < 2)
+        GPAINT_EXCEPTION("too few arguments. Format: save <destination name>")
 
     TPath destination = getUnifiedPath(args[1]);
-    printf("got %s\n", destination.c_str());
     if (destination == selected_path)
         return FAILED;
     if (destination.filename().extension() != ".bmp") {
-        setFontColor(ERROR_FONT_COLOR);
-        printf("Invalid extension '%s'. Could save 'bmp' only\n",
-               destination.filename().extension().c_str());
-        setFontColor(DEFAULT_FONT_COLOR);
+        GPAINT_EXCEPTION("Invalid extension '%s'. Could save 'bmp' only",
+                         destination.filename().extension().c_str());
         return FAILED;
     }
 
@@ -323,8 +302,6 @@ CMD_STATUS TerminalParser::transformFile(TPath file_in, TPath file_out) {
         outProgressBar(file_in.filename().c_str(), transformed, total);
 
         BMPReader::loadFromFile(file_in.c_str(), image);
-        RGBColor pix = image.GetPixel(0, 0);
-        pix = image.GetPixel(425, 639);
         outProgressBar(file_in.filename().c_str(), ++transformed, total);
         for (auto filter : selected_filters)
         {
@@ -387,13 +364,60 @@ CMD_STATUS TerminalParser::readFilter(TCommand& command) {
     return OK;
 }
 
-CMD_STATUS TerminalParser::parseReplaceColor(TCommand& command, ImageFilter*& filter) {
-    if (command.size() < 7) {
-        setFontColor(ERROR_FONT_COLOR);
-        printf("too few arguments. Format: replace-color <R1> <G1> <B1> <R2> <G2> <B2>");
-        setFontColor(DEFAULT_FONT_COLOR);
-        return FAILED;
+CMD_STATUS TerminalParser::readLineCommand(TCommand &line) {
+    size_t head = 1;
+    TPath destination_path = "";
+
+    TPath source = line[head];
+    if (!is_regular_file(source))
+        GPAINT_EXCEPTION("invalid format. Format: gpaint <bmp file> [attributes]")
+
+    TCommand cmd = {source};
+    executeEdit(cmd);
+    ++head;
+
+    while (head != line.size()) {
+        if (line[head][0] != '-')
+            GPAINT_EXCEPTION("invalid attribute '%s' format. Must begin with '-' character.", line[head].c_str());
+        cmd = {line[head].erase(0, 1)};
+        ++head;
+
+        while (head != line.size() && line[head][0] != '-') {
+            cmd.push_back(line[head]);
+            ++head;
+        }
+
+        if (cmd[0] == "o") {
+            if (cmd.size() < 2)
+                GPAINT_EXCEPTION("invalid attribute '-o' format. Format: -o <destination file>");
+            destination_path = getUnifiedPath(cmd[1]);
+            continue;
+        }
+
+        readEditCommand(cmd);
     }
+
+    if (destination_path.empty() || destination_path == source) {
+        printf("1 file will be rewritten. Are you sure? Answer [Y/n]");
+        char answer = std::getchar();
+
+        if (answer == 'Y' || answer == 'y') {
+            cmd = {"save", source};
+            return executeSave(cmd);
+        }
+        printf("Operation cancelled\n");
+        return OK;
+    }
+
+    cmd = {"save", destination_path};
+    return executeSave(cmd);
+}
+
+
+CMD_STATUS TerminalParser::parseReplaceColor(TCommand& command, ImageFilter*& filter) {
+    if (command.size() < 7)
+        GPAINT_EXCEPTION("too few arguments. Format: replace-color <R1> <G1> <B1> <R2> <G2> <B2>")
+
     RGBColor from(RGB::Null);
     RGBColor to  (RGB::Null);
     uint8_t channels[6];
@@ -414,15 +438,15 @@ CMD_STATUS TerminalParser::parseReplaceColor(TCommand& command, ImageFilter*& fi
 }
 
 CMD_STATUS TerminalParser::parseGauss(TCommand &command, ImageFilter *&filter) {
-    if (command.size() < 2) {
-        setFontColor(ERROR_FONT_COLOR);
-        printf("too few arguments. Format: gauss <dispersion> [<matrix-size>]");
-        setFontColor(DEFAULT_FONT_COLOR);
-        return FAILED;
-    }
+    if (command.size() < 2)
+        GPAINT_EXCEPTION("too few arguments. Format: gauss <dispersion> [<matrix-size>]")
+
     float dispersion;
     if (convertToFloat(command[1], dispersion) == FAILED)
         return FAILED;
+
+    if (dispersion <= 0)
+        GPAINT_EXCEPTION("dispersion must be positive value");
 
     if (command.size() < 3) {
         filter = new Filters::Gauss(dispersion);
@@ -442,9 +466,7 @@ CMD_STATUS TerminalParser::convertToInt(std::string input, int &dst) {
     if (sscanf(input.c_str(), "%d%n", &dst, &got) == 1 && got == input.size())
         return OK;
 
-    setFontColor(ERROR_FONT_COLOR);
-    printf("argument \"%s\" must be an integer\n", input.c_str());
-    setFontColor(DEFAULT_FONT_COLOR);
+    GPAINT_EXCEPTION("argument \"%s\" must be an integer", input.c_str())
     return FAILED;
 }
 
@@ -453,9 +475,7 @@ CMD_STATUS TerminalParser::convertToFloat(std::string input, float &dst) {
     if (sscanf(input.c_str(), "%f%n", &dst, &got) == 1 && got == input.size())
         return OK;
 
-    setFontColor(ERROR_FONT_COLOR);
-    printf("argument \"%s\" must be a float integer\n", input.c_str());
-    setFontColor(DEFAULT_FONT_COLOR);
+    GPAINT_EXCEPTION("argument \"%s\" must be a float integer", input.c_str())
     return FAILED;
 }
 
@@ -464,9 +484,7 @@ CMD_STATUS TerminalParser::convertToSize(std::string input, size_t &dst) {
     if (sscanf(input.c_str(), "%zu%n", &dst, &got) == 1 && got == input.size())
         return OK;
 
-    setFontColor(ERROR_FONT_COLOR);
-    printf("argument \"%s\" must be a size type\n", input.c_str());
-    setFontColor(DEFAULT_FONT_COLOR);
+    GPAINT_EXCEPTION("argument \"%s\" must be a size type", input.c_str())
     return FAILED;
 }
 
@@ -475,9 +493,6 @@ CMD_STATUS TerminalParser::convertToByte(std::string input, uint8_t &dst) {
     if (sscanf(input.c_str(), "%hhu%n", &dst, &got) == 1 && got == input.size())
         return OK;
 
-    setFontColor(ERROR_FONT_COLOR);
-    printf("argument \"%s\" must have a byte type (0...255)\n", input.c_str());
-    setFontColor(DEFAULT_FONT_COLOR);
+    GPAINT_EXCEPTION("argument \"%s\" must have a byte type (0...255)", input.c_str())
     return FAILED;
 }
-

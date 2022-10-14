@@ -4,7 +4,21 @@
 #include "Filters/gpaint_filters.h"
 #include "TerminalParser.h"
 
-int runLineMode(TerminalParser& parser, const char** argv) {
+const char* DEFAULT_FONT_COLOR_ = "\e[0m";
+const char* ERROR_FONT_COLOR_   = "\e[1;31m";
+
+int runLineMode(TerminalParser& parser, int argc, const char** argv) {
+    CMD_STATUS status;
+    TCommand command;
+    try {
+        parser.parseArgsToCommand(argc, argv, command);
+        status = parser.readLineCommand(command);
+    } catch (std::runtime_error& ex) {
+        printf("%s", ERROR_FONT_COLOR_);
+        printf("%s\n", ex.what());
+        printf("%s", DEFAULT_FONT_COLOR_);
+        status = FAILED;
+    }
     return 0;
 }
 
@@ -18,8 +32,15 @@ int runEditorMode(TerminalParser& parser) {
         std::string terminal_input;
         std::getline(std::cin, terminal_input);
 
-        parser.parseStringToCommand(terminal_input, command);
-        status = parser.readEditCommand(command);
+        try {
+            parser.parseStringToCommand(terminal_input, command);
+            status = parser.readEditCommand(command);
+        } catch (std::runtime_error& ex) {
+            printf("%s", ERROR_FONT_COLOR_);
+            printf("%s\n", ex.what());
+            printf("%s", DEFAULT_FONT_COLOR_);
+            status = FAILED;
+        }
 
     } while (status != CMD_STATUS::END);
 
@@ -35,9 +56,15 @@ int runDirectoryMode(TerminalParser& parser) {
         TCommand command;
         std::string terminal_input;
         std::getline(std::cin, terminal_input);
-
-        parser.parseStringToCommand(terminal_input, command);
-        status = parser.readDirCommand(command);
+        try {
+            parser.parseStringToCommand(terminal_input, command);
+            status = parser.readDirCommand(command);
+        } catch (std::runtime_error& ex) {
+            printf("%s", ERROR_FONT_COLOR_);
+            printf("%s\n", ex.what());
+            printf("%s", DEFAULT_FONT_COLOR_);
+            status = FAILED;
+        }
         if (status == CMD_STATUS::EDIT)
             runEditorMode(parser);
 
@@ -49,6 +76,10 @@ int runDirectoryMode(TerminalParser& parser) {
 
 int main(int argc, const char** argv) {
     TerminalParser terminal;
-    runDirectoryMode(terminal);
+    if (argc == 1) {
+        runDirectoryMode(terminal);
+    } else {
+        runLineMode(terminal, argc, argv);
+    }
     return 0;
 }

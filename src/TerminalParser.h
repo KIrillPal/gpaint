@@ -26,6 +26,7 @@ public:
     void parseArgsToCommand(int argc, const char** argv, TCommand &target);
     CMD_STATUS readDirCommand (TCommand &command);
     CMD_STATUS readEditCommand(TCommand &command);
+    CMD_STATUS readLineCommand(TCommand &line);
 
     CMD_STATUS executeLs(TCommand &args);
     CMD_STATUS executeCd(TCommand &args);
@@ -44,8 +45,6 @@ private:
     std::string _home_dir;
 
     std::vector<ImageFilter*> selected_filters;
-    const char* DEFAULT_FONT_COLOR = "\e[0m";
-    const char* ERROR_FONT_COLOR   = "\e[1;31m";
 
     std::string getUnifiedPath(std::string path);
     void setFontColor(const char* color_code);
