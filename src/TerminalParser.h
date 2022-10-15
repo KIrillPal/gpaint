@@ -32,6 +32,8 @@ public:
     CMD_STATUS executeCd(TCommand &args);
     CMD_STATUS executeEdit(TCommand &args);
     CMD_STATUS executeSave(TCommand &args);
+    CMD_STATUS executeStatus(TCommand &args);
+    CMD_STATUS executeUndo(TCommand &args);
     CMD_STATUS transformFile(TPath file_in, TPath file_out);
     void outProgressBar(const char* filename, int result, int total);
 
@@ -45,6 +47,7 @@ private:
     std::string _home_dir;
 
     std::vector<ImageFilter*> selected_filters;
+    std::vector<TCommand> selected_filtercmds;
 
     std::string getUnifiedPath(std::string path);
     void setFontColor(const char* color_code);
@@ -58,6 +61,7 @@ private:
     CMD_STATUS readFilter(TCommand& command);
     CMD_STATUS parseReplaceColor(TCommand& command, ImageFilter*& filter);
     CMD_STATUS parseGauss       (TCommand& command, ImageFilter*& filter);
+    CMD_STATUS parseCrop        (TCommand& command, ImageFilter*& filter);
 
     CMD_STATUS convertToInt   (std::string input, int& dst);
     CMD_STATUS convertToFloat (std::string input, float& dst);

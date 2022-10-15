@@ -11,6 +11,8 @@ namespace Filters {
     class Gray;
     class Edges;
     class Sobel;
+    class Median;
+    class Crop;
 }
 
 class Filters::Negative : public ImageFilter {
@@ -112,4 +114,24 @@ private:
             {-2,  0, 2},
             {-1, 0, 1}
     };
+};
+
+class Filters::Median : public ImageFilter {
+public:
+    Median() = default;
+    ~Median()                    override = default;
+    void transform(Image &image) override;
+private:
+    static int brightnessCmp(RGBColor first, RGBColor second);
+    int _shift = 2;
+};
+
+class Filters::Crop : public ImageFilter {
+public:
+    Crop() : Crop(0, 0, 0, 0) {};
+    Crop(size_t size_x, size_t size_y, size_t pos_x, size_t pos_y);
+    ~Crop() override = default;
+    void transform(Image &image) override;
+private:
+    size_t _size_x, _size_y, _pos_x, _pos_y;
 };

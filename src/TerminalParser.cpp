@@ -56,8 +56,6 @@ CMD_STATUS TerminalParser::readDirCommand(TCommand &command) {
     if (command[0].size() >= 5) {
         size_t sz = command[0].size();
         if (command[0].substr(sz - 4, 4) == ".bmp") {
-            Image test_img;
-            BMPReader::loadFromFile("images/img.bmp", test_img);
             return executeEdit(command);
         }
     }
@@ -122,8 +120,8 @@ CMD_STATUS TerminalParser::executeEdit(TCommand &args) {
     if (source == selected_path)
         return FAILED;
     try {
-        Image img_test;
-        BMPReader::loadFromFile(source.c_str(), img_test);
+        //Image img_test;
+        //BMPReader::loadFromFile(source.c_str(), img_test);
         selected_files.push_back(source);
         selected_format = source.filename();
         printf("Added file '%s'\n", source.c_str());
@@ -241,22 +239,22 @@ CMD_STATUS TerminalParser::readEditCommand(TCommand &command) {
         return FAILED;
 
     if (command[0] == "reset") {
-
+        printf("Cleared %zu filters\n", selected_filters.size());
+        selected_filters.clear();
+        selected_filtercmds.clear();
+        return OK;
     }
-    if (command[0] == "fstatus") {
-
+    if (command[0] == "status") {
+        return executeStatus(command);
     }
-    if (command[0] == "cstatus") {
-
-    }
-    if (command[0] == "ldf") {
+    if (command[0] == "pat") {
         
     }
-    if (command[0] == "svf") {
+    if (command[0] == "spat") {
 
     }
-    if (command[0] == "cstatus") {
-
+    if (command[0] == "undo") {
+        return executeUndo(command);
     }
     if (command[0] == "save") {
         return executeSave(command);
@@ -294,6 +292,56 @@ CMD_STATUS TerminalParser::executeSave(TCommand &args) {
 
     printf("Successfully saved %d file%c\n",
            transformed, selected_files.size() != 1 ? 's' : ' ');
+    return OK;
+}
+
+CMD_STATUS TerminalParser::executeStatus(TCommand &args) {
+    printf("Added %zu file%s:\n\e[1;37m",
+           selected_files.size(), selected_files.size() != 1 ? "s" : "");
+
+    for (auto &file: selected_files) {
+        printf("    %s\n", file.filename().c_str());
+    }
+    setFontColor(DEFAULT_FONT_COLOR);
+
+    printf("Added %zu filter%s:\n\e[1;37m",
+           selected_filters.size(), selected_filters.size() != 1 ? "s" : "");
+    for (auto &filter_cmd: selected_filtercmds) {
+        printf("    ");
+        for (auto &arg: filter_cmd)
+            printf("%s ", arg.c_str());
+        printf("\n");
+    }
+    setFontColor(DEFAULT_FONT_COLOR);
+    return OK;
+}
+
+CMD_STATUS TerminalParser::executeUndo(TCommand &args) {
+    if (selected_filters.empty()) {
+        printf("Nothing to undo. No filters added\n");
+        return OK;
+    }
+    std::string target = selected_filtercmds.back()[0];
+    if (args.size() > 1) {
+        target = args[1];
+    }
+
+    for (int i = selected_filters.size() - 1; i >= 0; --i) {
+        if (selected_filtercmds[i][0] == target)
+        {
+            std::string command;
+            for (auto& arg : selected_filtercmds[i])
+                command += arg + ' ';
+            command.pop_back();
+
+            printf("Filter '%s' was cancelled\n", command.c_str());
+
+            selected_filters.erase(selected_filters.begin() + i);
+            selected_filtercmds.erase(selected_filtercmds.begin() + i);
+            return OK;
+        }
+    }
+    printf("Nothing to undo. No filters '%s' was found\n", target.c_str());
     return OK;
 }
 
@@ -366,10 +414,18 @@ CMD_STATUS TerminalParser::readFilter(TCommand& command) {
     else if (command[0] == "sobel") {
         filter = new Filters::Sobel();
     }
+    else if (command[0] == "median") {
+        filter = new Filters::Median();
+    }
+    else if (command[0] == "crop") {
+        if (parseCrop(command, filter) == FAILED)
+            return OK;
+    }
 
     if (filter == nullptr)
         return FAILED;
 
+    selected_filtercmds.push_back(command);
     selected_filters.push_back(filter);
     printf("Added filter '%s'\n", command[0].c_str());
     return OK;
@@ -472,6 +528,33 @@ CMD_STATUS TerminalParser::parseGauss(TCommand &command, ImageFilter *&filter) {
     return OK;
 }
 
+CMD_STATUS TerminalParser::parseCrop(TCommand& command, ImageFilter*& filter) {
+    if (command.size() < 3)
+        GPAINT_EXCEPTION("too few arguments. Format: crop <size x> <size y> [<pos x> <pos y>]")
+
+    size_t size_x, size_y, pos_x = 0, pos_y = 0;
+    if (convertToSize(command[1], size_x) == FAILED)
+        return FAILED;
+
+    if (convertToSize(command[2], size_y) == FAILED) {
+        return FAILED;
+    }
+
+    if (size_x == 0 || size_y == 0)
+        GPAINT_EXCEPTION("size components must be positive");
+
+    if (command.size() >= 5) {
+        if (convertToSize(command[3], pos_x) == FAILED)
+            return FAILED;
+        if (convertToSize(command[3], pos_y) == FAILED)
+            return FAILED;
+    }
+
+    filter = new Filters::Crop(size_x, size_y, pos_x, pos_y);
+    return OK;
+}
+
+
 CMD_STATUS TerminalParser::convertToInt(std::string input, int &dst) {
     int got = 0;
     if (sscanf(input.c_str(), "%d%n", &dst, &got) == 1 && got == input.size())
@@ -492,8 +575,13 @@ CMD_STATUS TerminalParser::convertToFloat(std::string input, float &dst) {
 
 CMD_STATUS TerminalParser::convertToSize(std::string input, size_t &dst) {
     int got = 0;
-    if (sscanf(input.c_str(), "%zu%n", &dst, &got) == 1 && got == input.size())
+    int64_t signed_input;
+    if (sscanf(input.c_str(), "%zu%n", &signed_input, &got) == 1 && got == input.size()) {
+        if (signed_input < 0)
+            GPAINT_EXCEPTION("argument \"%s\" must be positive", input.c_str());
+        dst = signed_input;
         return OK;
+    }
 
     GPAINT_EXCEPTION("argument \"%s\" must be a size type", input.c_str())
     return FAILED;

@@ -15,7 +15,6 @@
         fclose(file);
         GPAINT_EXCEPTION("Couldn't open file \"%s\" to load", path);
     }
-
     if (!readBMPInfoHeader (file, &info_header)) {
         fclose(file);
         GPAINT_EXCEPTION("Invalid BMP info header format of file \"%s\"", path);
@@ -129,11 +128,16 @@ bool BMPReader::readOffset(FILE *file, size_t offset) {
 
 bool BMPReader::readImageRGB(FILE* file, Image& image, BMPInfoHeader bmp_info) {
     size_t byte_count  = sizeof(RGBColor);
-    size_t array_size  = bmp_info.width * bmp_info.height;
-    RGBColor* img_data = image.GetPixelArray()[0];
+    size_t line_size  = bmp_info.width;
+    RGBColor** img_data = image.GetPixelArray();
+    size_t realrow_offset = (line_size * byte_count + 3) / 4 * 4 - line_size * byte_count;
 
-    if (fread(img_data, byte_count, array_size, file) != array_size) {
-        return false;
+    for (size_t row = 0; row < bmp_info.height; ++row) {
+        if (fread(img_data[row], byte_count, line_size, file) != line_size) {
+            return false;
+        }
+        int nll = 0;
+        fread(&nll, realrow_offset, 1, file);
     }
     return true;
 }
@@ -166,11 +170,15 @@ bool BMPReader::readImageTBL(FILE *file, Image &image, BMPFileHeader file_info, 
 
 bool BMPReader::writeImageRGB(FILE* file, Image& image) {
     size_t byte_count  = sizeof(RGBColor);
-    size_t array_size  = image.GetWidth() * image.GetHeight();
-    RGBColor* img_data = image.GetPixelArray()[0];
-
-    if (fwrite(img_data, byte_count, array_size, file) != array_size) {
-        return false;
+    size_t line_size  = image.GetWidth();
+    RGBColor** img_data = image.GetPixelArray();
+    size_t realrow_offset = (line_size * byte_count + 3) / 4 * 4 - line_size * byte_count;
+    for (size_t row = 0; row < image.GetHeight(); ++row) {
+        if (fwrite(img_data[row], byte_count, line_size, file) != line_size) {
+            return false;
+        }
+        int nll = 0;
+        fwrite(&nll, realrow_offset, 1,file);
     }
     return true;
 }
@@ -180,6 +188,7 @@ void BMPReader::makesRGBHeaders(BMPFileHeader &fh, BMPInfoHeader &ih, BMPColorHe
     ih.width  = image.GetWidth();
     ih.height = image.GetHeight();
     ih.bit_count = sizeof(RGBColor) << 3;
+    ih.size_image = ih.width * ih.height * sizeof(RGBColor) + ih.height;
 
     fh.offset_data = sizeof(BMPFileHeader) + sizeof(BMPInfoHeader);
     fh.file_size   = fh.offset_data + ih.width * ih.height * sizeof(RGBColor);
