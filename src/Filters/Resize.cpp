@@ -18,11 +18,12 @@ void Resize::transform(Image &image) {
     RGBColor** new_pixels = new_img.GetPixelArray();
 
     for (size_t y = 0; y < height; ++y) {
-        double x_part = width * 1.f / _width;
-        double x_off = 0;
+        double xl = 0;
+        double xr = 0;
         for (size_t x = 0; x < _width; ++x) {
-            new_pixels[y][x] = convLineX(pixels, y, x_off, x_off + x_part);
-            x_off += x_part;
+            xl = xr;
+            xr = (x + 1) * width * 1.0 / _width;
+            new_pixels[y][x] = convLineX(pixels, y, xl, xr);
         }
     }
 
@@ -30,11 +31,12 @@ void Resize::transform(Image &image) {
     pixels = image.GetPixelArray();
 
     for (size_t x = 0; x < _width; ++x) {
-        double y_part = height * 1.f / _height;
-        double y_off = 0;
+        double yl = 0;
+        double yr = 0;
         for (size_t y = 0; y < _height; ++y) {
-            pixels[y][x] = convLineY(new_pixels, x, y_off, y_off + y_part);
-            y_off += y_part;
+            yl = yr;
+            yr = (y + 1) * height * 1.0 / _height;
+            pixels[y][x] = convLineY(new_pixels, x, yl, yr);
         }
     }
 }

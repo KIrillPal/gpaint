@@ -28,16 +28,21 @@ public:
     CMD_STATUS readEditCommand(TCommand &command);
     CMD_STATUS readLineCommand(TCommand &line);
 
+    bool isFileMask(std::string mask);
     CMD_STATUS executeLs(TCommand &args);
     CMD_STATUS executeCd(TCommand &args);
     CMD_STATUS executeEdit(TCommand &args);
     CMD_STATUS executeSave(TCommand &args);
     CMD_STATUS executeStatus(TCommand &args);
     CMD_STATUS executeUndo(TCommand &args);
+    CMD_STATUS executePreview(TCommand &args);
+    CMD_STATUS executePat(TCommand &args);
+    CMD_STATUS executeSpat(TCommand &args);
     CMD_STATUS transformFile(TPath file_in, TPath file_out);
     void outProgressBar(const char* filename, int result, int total);
 
     void outHeader(std::string format = "\e[1;32m");
+    void previewImage(Image& image);
 private:
     std::filesystem::path selected_path;
     std::vector<std::filesystem::path> selected_files;
@@ -50,8 +55,14 @@ private:
     std::vector<TCommand> selected_filtercmds;
 
     std::string getUnifiedPath(std::string path);
+    std::string getRelativePath(std::string path);
+    void parsePathToDirs(std::string path, TCommand& dirs);
+    std::string parseMaskToRegex(std::string mask);
+
     void setFontColor(const char* color_code);
     CMD_STATUS getDirectory(TPath path, std::filesystem::directory_entry& directory);
+    CMD_STATUS findFilesByMask(TCommand& dirs, size_t root, std::filesystem::directory_entry& rdir);
+    CMD_STATUS checkImageExists(TPath path);
 
     std::string getHomeDir();
     std::string getCurrentDir();
@@ -68,4 +79,6 @@ private:
     CMD_STATUS convertToFloat (std::string input, float& dst);
     CMD_STATUS convertToSize  (std::string input, size_t& dst);
     CMD_STATUS convertToByte  (std::string input, uint8_t& dst);
+    std::string replaceAll(std::string str, const std::string& from, const std::string& to);
+    bool askToDoOperation();
 };

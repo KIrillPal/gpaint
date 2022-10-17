@@ -10,7 +10,6 @@ void Median::transform(Image &image) {
 
     Image new_img(width, height);
     RGBColor** new_pixels = new_img.GetPixelArray();
-    printf("ok\n");
 
     std::vector<RGBColor> colors;
     colors.reserve(((2 * _shift + 1) * (2 * _shift + 1), RGB::Null));

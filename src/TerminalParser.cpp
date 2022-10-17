@@ -1,5 +1,6 @@
-#include <sstream>
+#include <fstream>
 #include <climits>
+#include <regex>
 #include <unistd.h>
 #include <pwd.h>
 #include "TerminalParser.h"
@@ -53,14 +54,24 @@ CMD_STATUS TerminalParser::readDirCommand(TCommand &command) {
         return executeCd(command);
     if (command[0] == "exit" || command[0] == "q")
         return END;
-    if (command[0].size() >= 5) {
-        size_t sz = command[0].size();
-        if (command[0].substr(sz - 4, 4) == ".bmp") {
-            return executeEdit(command);
+    if (command[0] == "edit") {
+        if (command.size() == 1) {
+            GPAINT_EXCEPTION("too few arguments: Format: edit <file mask>...");
         }
+        command.erase(command.begin());
+        return executeEdit(command);
+    }
+    if (isFileMask(command[0])) {
+        return executeEdit(command);
     }
     GPAINT_EXCEPTION("unknown command: '%s'", command[0].c_str());
     return FAILED;
+}
+
+bool TerminalParser::isFileMask(std::string mask) {
+    if (mask.find_first_of("./\\*^$?") != std::string::npos)
+        return true;
+    return false;
 }
 
 CMD_STATUS TerminalParser::executeLs(TCommand &args) {
@@ -116,21 +127,27 @@ struct remove_extend<T[]> {
 };
 
 CMD_STATUS TerminalParser::executeEdit(TCommand &args) {
-    TPath source = getUnifiedPath(args[0]);
-    if (source == selected_path)
-        return FAILED;
-    try {
-        //Image img_test;
-        //BMPReader::loadFromFile(source.c_str(), img_test);
-        selected_files.push_back(source);
-        selected_format = source.filename();
-        printf("Added file '%s'\n", source.c_str());
+    for (auto arg : args) {
+        TPath mask = getUnifiedPath(arg);
+        TCommand dirs;
+        parsePathToDirs(mask, dirs);
 
-    } catch (std::runtime_error &ex) {
-        printf("Failed to load image: %s\n", ex.what());
-        return FAILED;
+        std::filesystem::directory_entry root_entry;
+        getDirectory("", root_entry);
+        findFilesByMask(dirs, 0, root_entry);
     }
-    return EDIT;
+
+    if (!selected_files.empty()) {
+        if (selected_files.size() == 1)
+            selected_format = getRelativePath(selected_files[0]);
+        else selected_format = std::to_string(selected_files.size()) + " files";
+
+        printf("Now tracking %zu file%s\n", selected_files.size(), selected_files.size() != 1 ? "s" : "");
+        return EDIT;
+    } else
+        printf("Failed to load files. No files were found with mask '%s'\n",
+               getRelativePath(args[0]).c_str());
+    return OK;
 }
 
 std::string TerminalParser::getUnifiedPath(std::string path) {
@@ -166,6 +183,51 @@ std::string TerminalParser::getUnifiedPath(std::string path) {
     while (!path.empty() && path.back() == '/')
         path.pop_back();
     return path;
+}
+
+std::string TerminalParser::getRelativePath(std::string path) {
+    path = getUnifiedPath(path);
+    TCommand path_dirs, sp_dirs;
+    parsePathToDirs(path, path_dirs);
+    parsePathToDirs(selected_path, sp_dirs);
+    std::string relative;
+    size_t head = 0, both_head = sp_dirs.size();
+    for (; head < sp_dirs.size(); ++head) {
+        if (path_dirs.size() <= head || path_dirs[head] != sp_dirs[head]) {
+            both_head = head;
+            break;
+        }
+    }
+
+    for (; head < sp_dirs.size(); ++head) {
+        relative += "../";
+    }
+
+    for (size_t i = both_head; i < path_dirs.size(); ++i) {
+        relative += path_dirs[i] + '/';
+    }
+    if (!relative.empty())
+        relative.pop_back();
+    return relative;
+}
+
+void TerminalParser::parsePathToDirs(std::string path, TCommand& dirs) {
+    size_t pos = 0, lpos = 0;
+    while ((pos = path.find_first_of('/', lpos)) != std::string::npos) {
+        if (pos != 0) {
+            dirs.push_back(path.substr(lpos, pos - lpos));
+        }
+        lpos = pos + 1;
+    }
+    if (path.size() != lpos)
+        dirs.push_back(path.substr(lpos, path.size() - lpos));
+}
+
+std::string TerminalParser::parseMaskToRegex(std::string mask) {
+    mask = replaceAll(mask, ".", "[.]");
+    mask = replaceAll(mask, "*", ".*");
+    mask = replaceAll(mask, "?", ".");
+    return mask;
 }
 
 void TerminalParser::setFontColor(const char* color_code) {
@@ -231,7 +293,50 @@ CMD_STATUS TerminalParser::getDirectory(TPath path, std::filesystem::directory_e
     return OK;
 }
 
+CMD_STATUS TerminalParser::findFilesByMask(TCommand& dirs, size_t root, std::filesystem::directory_entry& rdir) {
+    std::string rel_path = getRelativePath(rdir.path());
+    bool is_in_cwd = rel_path.empty() || rel_path[0] != '.';
 
+    std::filesystem::directory_iterator files(rdir);
+    for (auto file : files)
+    {
+        TPath filename = file.path().filename();
+        std::regex filemask(parseMaskToRegex(dirs[root]));
+        if (std::regex_match(filename.c_str(), filemask)) {
+            if (root == dirs.size() - 1) {
+                if (checkImageExists(file.path()) == OK) {
+                    if (!is_in_cwd) {
+                        printf("Couldn't add file '%s': file is out of working directory\n", getRelativePath(file.path()).c_str());
+                        continue;
+                    }
+                    selected_files.push_back(file.path());
+                    printf("Added file '%s'\n", getRelativePath(file.path()).c_str());
+                }
+            }
+            else {
+                std::filesystem::directory_entry target_dir;
+                try {
+                    getDirectory(file.path(), target_dir);
+                    findFilesByMask(dirs, root + 1, target_dir);
+                } catch (std::runtime_error& ex) {}
+            }
+        }
+    }
+    return OK;
+}
+
+CMD_STATUS TerminalParser::checkImageExists(TPath path) {
+    try {
+        Image img_test;
+        BMPReader::loadFromFile(path.c_str(), img_test);
+    } catch (std::runtime_error &ex) {
+        setFontColor(ERROR_FONT_COLOR);
+        printf("Failed to load '%s': %s\n", getRelativePath(path).c_str(), ex.what());
+        setFontColor(DEFAULT_FONT_COLOR);
+        return FAILED;
+    }
+    return OK;
+}
 
 
 CMD_STATUS TerminalParser::readEditCommand(TCommand &command) {
@@ -248,13 +353,16 @@ CMD_STATUS TerminalParser::readEditCommand(TCommand &command) {
         return executeStatus(command);
     }
     if (command[0] == "pat") {
-        
+        return executePat(command);
     }
     if (command[0] == "spat") {
-
+        return executeSpat(command);
     }
     if (command[0] == "undo") {
         return executeUndo(command);
+    }
+    if (command[0] == "preview") {
+        return executePreview(command);
     }
     if (command[0] == "save") {
         return executeSave(command);
@@ -272,35 +380,12 @@ CMD_STATUS TerminalParser::readEditCommand(TCommand &command) {
     return FAILED;
 }
 
-CMD_STATUS TerminalParser::executeSave(TCommand &args) {
-    if (args.size() < 2)
-        GPAINT_EXCEPTION("too few arguments. Format: save <destination name>")
-
-    TPath destination = getUnifiedPath(args[1]);
-    if (destination == selected_path)
-        return FAILED;
-    if (destination.filename().extension() != ".bmp") {
-        GPAINT_EXCEPTION("Invalid extension '%s'. Could save 'bmp' only",
-                         destination.filename().extension().c_str());
-        return FAILED;
-    }
-
-    int transformed = 0;
-    for (auto file : selected_files) {
-        transformed += (transformFile(file, destination) == OK);
-    }
-
-    printf("Successfully saved %d file%c\n",
-           transformed, selected_files.size() != 1 ? 's' : ' ');
-    return OK;
-}
-
 CMD_STATUS TerminalParser::executeStatus(TCommand &args) {
     printf("Added %zu file%s:\n\e[1;37m",
            selected_files.size(), selected_files.size() != 1 ? "s" : "");
 
     for (auto &file: selected_files) {
-        printf("    %s\n", file.filename().c_str());
+        printf("    %s\n", file.c_str());
     }
     setFontColor(DEFAULT_FONT_COLOR);
 
@@ -342,6 +427,173 @@ CMD_STATUS TerminalParser::executeUndo(TCommand &args) {
         }
     }
     printf("Nothing to undo. No filters '%s' was found\n", target.c_str());
+    return OK;
+}
+
+CMD_STATUS TerminalParser::executeSave(TCommand &args) {
+    TPath path = "";
+    if (args.size() > 1)
+         path = getUnifiedPath(args[1]);
+
+    bool is_dir = !path.has_extension();
+    if (!is_dir && selected_files.size() > 1)
+        GPAINT_EXCEPTION("Destination must be a folder because several files are saving");
+
+    if (!is_dir && path != "" && selected_files.size() == 1) {
+
+        if (path.filename().extension() != ".bmp") {
+            GPAINT_EXCEPTION("Invalid extension '%s'. Could save 'bmp' only",
+                             path.filename().extension().c_str());
+            return FAILED;
+        }
+    }
+
+    int rewrite_dests = 0;
+    int outer_saving  = 0;
+    std::vector<TPath> destinations(selected_files.size());
+    if (!is_dir)
+        destinations[0] = path;
+    else
+    {
+        for (size_t i = 0; i < selected_files.size(); ++i) {
+            TPath inner_path = getRelativePath(selected_files[i]);
+
+            if (path != "")
+                 destinations[i] = (std::string) path + "/" + (std::string) inner_path;
+            else destinations[i] = selected_files[i];
+
+            if (exists(destinations[i]))
+                ++rewrite_dests;
+        }
+    }
+
+    if (rewrite_dests > 0) {
+        printf("%zu file%s will be rewritten. Are you sure? Answer [Y/n]",
+               selected_files.size(), selected_files.size() != 1 ? "s" : "");
+        if (!askToDoOperation()) return OK;
+    }
+
+    int transformed = 0;
+    for (size_t i = 0; i < selected_files.size(); ++i) {
+        TPath destination = destinations[i];
+        TPath inner_path = getRelativePath(selected_files[i]);
+
+        std::error_code err;
+        std::filesystem::create_directories(destination.parent_path(), err);
+        if (!exists(destination.parent_path())) {
+            printf("'%s': Process failed. Couldn't create directory %s\n",
+                   inner_path.c_str(), destination.parent_path().c_str());
+            continue;
+        }
+
+        transformed += (transformFile(selected_files[i], destination) == OK);
+    }
+
+    printf("Successfully saved %d file%c\n",
+           transformed, transformed != 1 ? 's' : ' ');
+    return OK;
+}
+
+CMD_STATUS TerminalParser::executePreview(TCommand &args) {
+    const size_t MAX_SIMPLE_PREVIEW = 5;
+    const size_t PREVIEW_WIDTH = 30;
+
+    TPath path = "";
+    std::vector<TPath> sources;
+
+    if (args.size() > 1)
+         path = getUnifiedPath(args[1]);
+
+    if (path != "") {
+        sources.push_back(path);
+    }
+    else {
+        if (selected_files.size() > MAX_SIMPLE_PREVIEW) {
+            printf("%zu files will be previewed. Are you sure? Answer [Y/n]", selected_files.size());
+            char answer = std::getchar();
+
+            if (answer != 'Y' && answer != 'y') {
+                printf("Operation cancelled\n");
+                return OK;
+            }
+        }
+        for (auto file : selected_files)
+            sources.push_back(file);
+    }
+
+    for (auto path : sources)
+    {
+        if (sources.size() > 1)
+            printf("%s:\n", getRelativePath(path).c_str());
+
+        try {
+            Image image;
+            BMPReader::loadFromFile(path.c_str(), image);
+            size_t new_width = std::min(image.GetWidth(), PREVIEW_WIDTH);
+            size_t new_height = image.GetHeight() * new_width / image.GetWidth();
+            Filters::Resize resize(2 * new_width, new_height);
+            resize.transform(image);
+            previewImage(image);
+
+        } catch (std::runtime_error &ex) {
+            printf("'%s': %s\n", path.c_str(), ex.what());
+        }
+    }
+    return OK;
+}
+
+CMD_STATUS TerminalParser::executePat(TCommand &args) {
+    if (args.size() == 1)
+        GPAINT_EXCEPTION("invalid format. Format: pat <pat file>");
+
+    TPath path = getUnifiedPath(args[1]);
+    std::ifstream fin(path);
+
+    if (!fin.is_open())
+        GPAINT_EXCEPTION("Failed to load pattern: Couldn't open file '%s'", path.c_str());
+
+    printf("Loading pattern:\n");
+
+    std::string row;
+    while (std::getline(fin, row)) {
+        TCommand cmd;
+        parseStringToCommand(row, cmd);
+        try {
+            readEditCommand(cmd);
+        } catch (std::runtime_error &ex) {
+            printf("%s", ERROR_FONT_COLOR);
+            printf("%s\n", ex.what());
+            printf("%s", DEFAULT_FONT_COLOR);
+        }
+    }
+
+    printf("Pattern was loaded\n");
+
+    fin.close();
+    return OK;
+}
+
+CMD_STATUS TerminalParser::executeSpat(TCommand &args) {
+    if (args.size() == 1)
+    GPAINT_EXCEPTION("invalid format. Format: spat <path to save>");
+
+    TPath path = getUnifiedPath(args[1]);
+    std::error_code err;
+    std::filesystem::create_directories(path.parent_path(), err);
+    std::ofstream fout(path);
+
+    if (!fout.is_open())
+        GPAINT_EXCEPTION("Failed to save pattern: Couldn't create file '%s'", path.c_str());
+
+    for (auto filter_cmd : selected_filtercmds) {
+        for (auto arg : filter_cmd) {
+            fout << arg << ' ';
+        }
+        fout << '\n';
+    }
+
+    printf("Pattern was saved at '%s'\n", path.c_str());
+    fout.close();
     return OK;
 }
 
@@ -387,6 +639,21 @@ void TerminalParser::outProgressBar(const char* filename, int result, int total)
     );
     fflush(stdout);
 }
+
+void TerminalParser::previewImage(Image& image) {
+    size_t width  = image.GetWidth();
+    size_t height = image.GetHeight();
+    RGBColor** pixels = image.GetPixelArray();
+
+    for (size_t y = 0; y < height; ++y) {
+        for (size_t x = 0; x < width; ++x) {
+            RGBColor& c = pixels[height - y - 1][x];
+            printf("\x1b[38;2;%d;%d;%dm█\x1b[0m", c.R, c.G, c.B);
+        }
+        printf("\n");
+    }
+}
+
 
 CMD_STATUS TerminalParser::readFilter(TCommand& command) {
 
@@ -617,4 +884,23 @@ CMD_STATUS TerminalParser::convertToByte(std::string input, uint8_t &dst) {
 
     GPAINT_EXCEPTION("argument \"%s\" must have a byte type (0...255)", input.c_str())
     return FAILED;
+}
+
+std::string TerminalParser::replaceAll(std::string str, const std::string& from, const std::string& to) {
+    size_t start_pos = 0;
+    while((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length();
+    }
+    return str;
+}
+
+bool TerminalParser::askToDoOperation() {
+    char answer = std::getchar();
+
+    if (answer != 'Y' && answer != 'y') {
+        printf("Operation cancelled\n");
+        return false;
+    }
+    return true;
 }
