@@ -13,6 +13,7 @@ namespace Filters {
     class Sobel;
     class Median;
     class Crop;
+    class Resize;
 }
 
 class Filters::Negative : public ImageFilter {
@@ -134,4 +135,17 @@ public:
     void transform(Image &image) override;
 private:
     size_t _size_x, _size_y, _pos_x, _pos_y;
+};
+
+class Filters::Resize : public ImageFilter {
+public:
+    Resize() : Resize(0, 0) {};
+    Resize(size_t width, size_t height);
+    ~Resize() override = default;
+    void transform(Image &image) override;
+private:
+    size_t _width, _height;
+
+    RGBColor convLineX(RGBColor** data, int y, double x1, double x2);
+    RGBColor convLineY(RGBColor** data, int x, double y1, double y2);
 };

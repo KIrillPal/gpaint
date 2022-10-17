@@ -62,6 +62,7 @@ private:
     CMD_STATUS parseReplaceColor(TCommand& command, ImageFilter*& filter);
     CMD_STATUS parseGauss       (TCommand& command, ImageFilter*& filter);
     CMD_STATUS parseCrop        (TCommand& command, ImageFilter*& filter);
+    CMD_STATUS parseResize      (TCommand& command, ImageFilter*& filter);
 
     CMD_STATUS convertToInt   (std::string input, int& dst);
     CMD_STATUS convertToFloat (std::string input, float& dst);

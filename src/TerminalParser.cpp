@@ -421,6 +421,10 @@ CMD_STATUS TerminalParser::readFilter(TCommand& command) {
         if (parseCrop(command, filter) == FAILED)
             return OK;
     }
+    else if (command[0] == "resize") {
+        if (parseResize(command, filter) == FAILED)
+            return OK;
+    }
 
     if (filter == nullptr)
         return FAILED;
@@ -551,6 +555,25 @@ CMD_STATUS TerminalParser::parseCrop(TCommand& command, ImageFilter*& filter) {
     }
 
     filter = new Filters::Crop(size_x, size_y, pos_x, pos_y);
+    return OK;
+}
+
+CMD_STATUS TerminalParser::parseResize(TCommand& command, ImageFilter*& filter) {
+    if (command.size() < 3)
+    GPAINT_EXCEPTION("too few arguments. Format: resize <size x> <size y>")
+
+    size_t size_x, size_y;
+    if (convertToSize(command[1], size_x) == FAILED)
+        return FAILED;
+
+    if (convertToSize(command[2], size_y) == FAILED) {
+        return FAILED;
+    }
+
+    if (size_x == 0 || size_y == 0)
+    GPAINT_EXCEPTION("size components must be positive");
+
+    filter = new Filters::Resize(size_x, size_y);
     return OK;
 }
 
