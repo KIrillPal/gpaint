@@ -81,4 +81,7 @@ private:
     CMD_STATUS convertToByte  (std::string input, uint8_t& dst);
     std::string replaceAll(std::string str, const std::string& from, const std::string& to);
     bool askToDoOperation();
+    CMD_STATUS getDirCommandHelp(TCommand& cmd);
+    CMD_STATUS getEditCommandHelp(TCommand& cmd);
+    CMD_STATUS getHelp();
 };

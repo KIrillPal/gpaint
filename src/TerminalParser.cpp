@@ -48,6 +48,19 @@ CMD_STATUS TerminalParser::readDirCommand(TCommand &command) {
     if (command.empty())
         return FAILED;
 
+    if (command[0] == "help" || command[0] == "-help" || command[0] == "--help") {
+        return getHelp();
+    }
+
+    if (command.size() >= 2 && (command[1] == "-h" || command[1] == "--help")) {
+        if (command[0] == "ls" || command[0] == "cd") {
+            TPath try_dir = getRelativePath(command[1]);
+            if (!exists(try_dir))
+                return getDirCommandHelp(command);
+        }
+        else return getDirCommandHelp(command);
+    }
+
     if (command[0] == "ls")
         return executeLs(command);
     if (command[0] == "cd")
@@ -55,9 +68,6 @@ CMD_STATUS TerminalParser::readDirCommand(TCommand &command) {
     if (command[0] == "exit" || command[0] == "q")
         return END;
     if (command[0] == "edit") {
-        if (command.size() == 1) {
-            GPAINT_EXCEPTION("too few arguments: Format: edit <file mask>...");
-        }
         command.erase(command.begin());
         return executeEdit(command);
     }
@@ -342,6 +352,15 @@ CMD_STATUS TerminalParser::checkImageExists(TPath path) {
 CMD_STATUS TerminalParser::readEditCommand(TCommand &command) {
     if (command.empty())
         return FAILED;
+
+    if (command.size() >= 2 && (command[1] == "-h" || command[1] == "--help")) {
+        if (command[0] == "save") {
+            TPath try_dir = getRelativePath(command[1]);
+            if (!exists(try_dir))
+                return getEditCommandHelp(command);
+        }
+        else return getEditCommandHelp(command);
+    }
 
     if (command[0] == "reset") {
         printf("Cleared %zu filters\n", selected_filters.size());
@@ -705,6 +724,13 @@ CMD_STATUS TerminalParser::readFilter(TCommand& command) {
 CMD_STATUS TerminalParser::readLineCommand(TCommand &line) {
     size_t head = 1;
     TPath destination_path = "";
+
+    if (line.size() < 2)
+        GPAINT_EXCEPTION("invalid format. Format: gpaint <bmp file> [attributes]")
+
+     if (line[1] == "--help" || line[1] == "-h") {
+         return getHelp();
+     }
 
     TPath source = line[head];
     if (!is_regular_file(source))
