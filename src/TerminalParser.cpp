@@ -353,6 +353,10 @@ CMD_STATUS TerminalParser::readEditCommand(TCommand &command) {
     if (command.empty())
         return FAILED;
 
+    if (command[0] == "help" || command[0] == "-help" || command[0] == "--help") {
+        return getHelp();
+    }
+
     if (command.size() >= 2 && (command[1] == "-h" || command[1] == "--help")) {
         if (command[0] == "save") {
             TPath try_dir = getRelativePath(command[1]);
@@ -389,6 +393,7 @@ CMD_STATUS TerminalParser::readEditCommand(TCommand &command) {
     if (command[0] == "exit" || command[0] == "q") {
         selected_files.clear();
         selected_filters.clear();
+        selected_filtercmds.clear();
         selected_format = selected_path.filename();
         return END;
     }
@@ -726,18 +731,17 @@ CMD_STATUS TerminalParser::readLineCommand(TCommand &line) {
     TPath destination_path = "";
 
     if (line.size() < 2)
-        GPAINT_EXCEPTION("invalid format. Format: gpaint <bmp file> [attributes]")
+        GPAINT_EXCEPTION("invalid format. Format: gpaint <path mask> [attributes]")
 
      if (line[1] == "--help" || line[1] == "-h") {
          return getHelp();
      }
 
-    TPath source = line[head];
-    if (!is_regular_file(source))
-        GPAINT_EXCEPTION("invalid format. Format: gpaint <bmp file> [attributes]")
-
+    std::string source = line[head];
     TCommand cmd = {source};
     executeEdit(cmd);
+    printf("%s\n", line[head].c_str());
+
     ++head;
 
     while (head != line.size()) {

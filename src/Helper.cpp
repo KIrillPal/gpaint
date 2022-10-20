@@ -153,9 +153,62 @@ CMD_STATUS TerminalParser::getEditCommandHelp(TCommand &cmd) {
                "    2. \"save new-folder/\"\n"
         );
     }
-    else {
-        GPAINT_EXCEPTION("unknown command: '%s'", cmd[0].c_str());
-        return FAILED;
+    else if (cmd[0] == "negative") {
+        printf("negative - inverts all colors of image\n"
+               "Examples:\n"
+               "    1. \"negative\"\n"
+        );
+    }
+    else if (cmd[0] == "clarify") {
+        printf("clarify  - makes bounds more visible in image\n"
+               "Examples:\n"
+               "    1. \"clarify\"\n"
+        );
+    }
+    else if (cmd[0] == "replace-color") {
+        printf("replace-color <R1> <G1> <B1> <R2> <G2> <B2> - replaces color (R1, G1, B1) to (R2, G2, B2) in image\n"
+               "Arguments must be decimal values in range 0...255\n"
+               "Examples:\n"
+               "    1. \"replace-color 0 0 0 255 255 255\"\n"
+        );
+    }
+    else if (cmd[0] == "resize") {
+        printf("resize <size x> <size y> - resizes image to size (size x, size y)\n"
+               "Arguments <size x> and <size y> must be only positive\n"
+               "Examples:\n"
+               "    1. \"resize 20 30\"\n"
+        );
+    }
+    else if (cmd[0] == "gauss") {
+        printf("gauss - gauss blur with level <dispersion> and size of conv matrix [conv side]\n\n"
+               "Using: gauss <dispersion>\n"
+               "Using: gauss <dispersion> [conv matrix size]\n\n"
+               "Argument <dispersion> determines the power of blur, must be a float value.\n"
+               "Argument [conv size] determines the size of convolution matrix side.\n"
+               "    Increasing this value increases precision of blur.\n"
+               "    By default conv size = [6 * dispersion + 1]\n"
+               "Examples:\n"
+               "    1. \"gauss 1.4\"\n"
+               "    2. \"gauss 100 200\"\n"
+        );
+    }
+    else if (cmd[0] == "median") {
+        printf("median - noise reduction filter\n"
+               "Examples:\n"
+               "    1. \"median\"\n"
+        );
+    }
+    else if (cmd[0] == "gray") {
+        printf("gray - makes image black-and-white\n"
+               "Examples:\n"
+               "    1. \"gray\"\n"
+        );
+    }
+    else if (cmd[0] == "sobel") {
+        printf("sobel - sobel operator. Detects and highlights edges in the images\n"
+               "Examples:\n"
+               "    1. \"sobel\"\n"
+        );
     }
     return OK;
 }
@@ -163,8 +216,9 @@ CMD_STATUS TerminalParser::getEditCommandHelp(TCommand &cmd) {
 CMD_STATUS TerminalParser::getHelp() {
     printf("Gpaint - image terminal editor.\n\n"
            "Usage: gpaint\n"
-           "Usage: gpaint [arguments]\n\n"
-           "If hasn't arguments, it enters editor mode.\n"
+           "Usage: gpaint <file path> [arguments]...\n\n"
+           "If hasn't arguments, it enters directory mode.\n\n"
+           "To edit your image enter its path to the terminal or select your images with mask list (for full information enter \"edit --help\")\n\n"
            "    The program has 2 basic modes (header color):\n"
            "    1) directory mode(green)\n"
            "    Shows current working directory. Using commands:\n"
@@ -189,6 +243,26 @@ CMD_STATUS TerminalParser::getHelp() {
            "            Full information in \"save -h\"\n"
            "        exit          - exits editor mode.\n"
            "        <command> -h | <command> --help - outs help.\n\n"
+           "    Using filters:\n"
+           "        negative - inverts all colors of image\n"
+           "        clarify  - make bounds more visible in image\n"
+           "        replace-color <R1> <G1> <B1> <R2> <G2> <B2> - replaces color (R1, G1, B1) to (R2, G2, B2)\n"
+           "        resize <size x> <size y> - resizes image to size (size x, size y)\n"
+           "        gauss <dispersion> [conv matrix side] - gauss dispersion with level <dispersion> and size of conv [comv matrix side]\n"
+           "        By default conv side size = [6 * dispersion + 1]\n"
+           "        median - median filter\n"
+           "        gray   - make gray image\n"
+           "        sobel  - sobel filter\n\n"
+           "Arguments in \"gpaint <image mask> [arguments]...\"\n"
+           "    <image mask> - mask using to find image paths to edit\n. Use \"edit --help\" to find how to use masks.\n"
+           "    [arguments]:"
+           "        1) commands or filters preceded by '-'. Only commands of editor mode.\n"
+           "        examples: \"-pat <file>\", \"-gray\"\n\n"
+           "        2) \"-o [path]\" - sets file path or folder path to save resulted images after all filters.\n\n"
+           "Examples:\n"
+           "    1) \"gpaint images/*.bmp -negative -pat ./patterns/p1.pat -o ~/out-dir/\"\n"
+           "    2) \"gpaint kek.bmp -o puk.bmp -gauss 0.5 20\"\n"
+           "    3) \"gpaint * -preview\"\n"
     );
     return OK;
 }
