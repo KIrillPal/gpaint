@@ -1,4 +1,6 @@
-all: obj/Image.o obj/BMP.o Filters obj/TerminalParser.o obj/Helper.o src/main.cpp
+.PHONY: all clean
+
+all: obj obj/Image.o obj/BMP.o Filters obj/TerminalParser.o obj/Helper.o src/main.cpp
 	g++ obj/Image.o obj/BMP.o obj/TerminalParser.o obj/Helper.o obj/filters.o src/main.cpp -o gpaint
 Filters:  obj/Negative.o obj/ReplaceColor.o obj/Convolution.o obj/Gauss.o obj/Gray.o obj/Median.o obj/Sobel.o obj/Crop.o obj/Resize.o
 	ld -r obj/Negative.o obj/ReplaceColor.o obj/Convolution.o obj/Gauss.o obj/Gray.o obj/Sobel.o obj/Median.o obj/Crop.o obj/Resize.o -o obj/filters.o
@@ -33,5 +35,8 @@ obj/Image.o: src/gpaint_exception.h src/Image.h src/Image.cpp
 	g++ -c src/Image.cpp -o obj/Image.o
 run: all
 	./gpaint
-clear:
+obj:
+	mkdir obj
+clean:
 	rm obj/*
+	rmdir obj

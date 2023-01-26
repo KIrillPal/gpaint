@@ -1,0 +1,4 @@
+negative 
+gauss 5 20 
+sobel 
+negative 
